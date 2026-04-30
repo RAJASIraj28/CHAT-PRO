@@ -198,10 +198,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    sendBtn.addEventListener('click', sendMessage);
-    msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    // VOICE MESSAGING
+    let mediaRecorder;
+    let audioChunks = [];
+    const voiceBtn = document.getElementById('voice-btn');
+    const voiceOverlay = document.getElementById('voice-overlay');
 
-    function appendMessage(sender, text, type, id) {
+    voiceBtn.addEventListener('mousedown', startRecording);
+    voiceBtn.addEventListener('touchstart', startRecording);
+    voiceBtn.addEventListener('mouseup', stopRecording);
+    voiceBtn.addEventListener('touchend', stopRecording);
+
+    async function startRecording(e) {
+        e.preventDefault();
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+            mediaRecorder.onstop = sendVoiceMessage;
+            mediaRecorder.start();
+            voiceOverlay.style.display = 'flex';
+        } catch (err) { alert("Mic denied"); }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            voiceOverlay.style.display = 'none';
+        }
+    }
+
+    async function sendVoiceMessage() {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+            const base64Audio = reader.result;
+            if (currentChatType === 'global') {
+                globalChat.set({ sender: myName, audio: base64Audio, time: Date.now() });
+            } else if (activeFriendId) {
+                const roomId = [peer.id, activeFriendId].sort().join('_');
+                privateChatRelay.get(roomId).set({ sender: myName, audio: base64Audio, time: Date.now() });
+            }
+        };
+    }
+
+    // UPDATED APPEND MESSAGE TO HANDLE AUDIO
+    function appendMessage(sender, text, type, id, audio = null) {
         if (document.getElementById(`msg-${id}`)) return;
         const row = document.createElement('div');
         row.className = `msg-row ${type}`;
@@ -211,11 +255,54 @@ document.addEventListener('DOMContentLoaded', () => {
         const senderSpan = document.createElement('p');
         senderSpan.style.fontSize = '0.7rem'; senderSpan.style.opacity = '0.6'; senderSpan.style.marginBottom = '4px';
         senderSpan.textContent = sender;
-        const textP = document.createElement('p');
-        textP.textContent = text;
-        bubble.appendChild(senderSpan); bubble.appendChild(textP); row.appendChild(bubble);
+        
+        if (audio) {
+            const player = document.createElement('audio');
+            player.src = audio;
+            player.controls = true;
+            player.style.width = '200px';
+            player.style.height = '35px';
+            bubble.appendChild(senderSpan); bubble.appendChild(player);
+        } else {
+            const textP = document.createElement('p');
+            textP.textContent = text;
+            bubble.appendChild(senderSpan); bubble.appendChild(textP);
+        }
+        
+        row.appendChild(bubble);
         chatBody.appendChild(row);
         chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    // UPDATE MAP LISTENERS TO PASS AUDIO
+    globalChat.map().on((data, id) => {
+        if (data && (data.text || data.audio)) {
+            appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id, data.audio);
+        }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    async function loadPrivateChat(friendId) {
+        chatBody.innerHTML = '';
+        activeFriendId = friendId;
+        document.getElementById('chat-title').textContent = `Secure Chat: ${friendId.substring(0,6)}`;
+        document.getElementById('header-avatar').textContent = '👤';
+        document.getElementById('start-video-call').style.display = 'flex';
+
+        const roomId = [peer.id, friendId].sort().join('_');
+        const sharedKey = roomId;
+
+        privateChatRelay.get(roomId).map().on(async (encryptedData, id) => {
+            if (encryptedData && (encryptedData.text || encryptedData.audio)) {
+                let decryptedText = encryptedData.text;
+                if (encryptedData.text) {
+                    decryptedText = await SEA.decrypt(encryptedData.text, sharedKey);
+                }
+                appendMessage(encryptedData.sender, decryptedText, encryptedData.sender === myName ? 'sent' : 'received', id, encryptedData.audio);
+            }
+        });
     }
 
     document.getElementById('copy-id-btn').addEventListener('click', () => {

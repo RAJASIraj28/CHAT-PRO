@@ -107,11 +107,23 @@
             <div class="input-wrapper">
                 <input type="text" id="msg-input" placeholder="Type a message..." autocomplete="off">
             </div>
+            <button id="voice-btn" class="icon-btn" style="background:rgba(255,255,255,0.1); margin-right:5px; border:none;">🎙️</button>
             <button id="send-btn">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
         </footer>
     </div>
+
+    <!-- VOICE RECORDING OVERLAY -->
+    <div id="voice-overlay" style="position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.9); backdrop-filter:blur(10px); padding:10px 20px; border-radius:30px; display:none; align-items:center; gap:15px; border:1px solid var(--accent-color); z-index:100;">
+        <div class="voice-wave" style="display:flex; gap:3px; align-items:center;">
+            <div style="width:3px; height:15px; background:var(--accent-color); border-radius:3px; animation: bounce 0.5s infinite alternate;"></div>
+            <div style="width:3px; height:25px; background:var(--accent-color); border-radius:3px; animation: bounce 0.5s infinite alternate 0.1s;"></div>
+            <div style="width:3px; height:15px; background:var(--accent-color); border-radius:3px; animation: bounce 0.5s infinite alternate 0.2s;"></div>
+        </div>
+        <span id="voice-timer">00:00</span>
+    </div>
+    <style>@keyframes bounce { from { height: 10px; } to { height: 25px; } }</style>
 
     <!-- Onboarding -->
     <div id="onboarding-screen" class="modal show" style="display:flex;">
