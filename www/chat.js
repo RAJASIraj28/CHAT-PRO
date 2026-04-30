@@ -2,22 +2,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // ==== STATE & CONSTANTS ====
     let myName = localStorage.getItem('my_chat_name') || '';
-    let currentChatType = 'global'; // 'global' or 'private'
+    let mySecretKey = localStorage.getItem('my_chat_key') || Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('my_chat_key', mySecretKey);
+
+    let currentChatType = 'global';
     let activeFriendId = null;
     let localStream = null;
     let currentCall = null;
 
-    const gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
-    const chatDB = gun.get('pro_chat_global_final_v1');
+    // Use a more robust set of Gun.js relay peers
+    const gun = Gun({
+        peers: [
+            'https://gun-manhattan.herokuapp.com/gun',
+            'https://gun-us.herokuapp.com/gun',
+            'https://gun-eu.herokuapp.com/gun'
+        ]
+    });
+    
+    const globalChat = gun.get('pro_chat_global_final_v2');
+    const privateChatRelay = gun.get('pro_chat_private_relay_v2');
 
     const peer = new Peer(undefined, {
         config: {
             'iceServers': [
                 { url: 'stun:stun.l.google.com:19302' },
                 { url: 'stun:stun1.l.google.com:19302' },
-                { url: 'stun:stun2.l.google.com:19302' }
-            ]
-        }
+                { url: 'stun:stun2.l.google.com:19302' },
+                { url: 'stun:stun3.l.google.com:19302' },
+                { url: 'stun:stun4.l.google.com:19302' }
+            ],
+            'sdpSemantics': 'unified-plan'
+        },
+        debug: 1
     });
 
     // ==== UI ELEMENTS ====
@@ -29,8 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const onboardNameInput = document.getElementById('onboard-name');
     const finishOnboardBtn = document.getElementById('finish-onboard-btn');
     const callingUI = document.getElementById('calling-ui');
+    const statusText = document.getElementById('connection-status');
 
-    // ==== ONBOARDING ====
+    // ==== INITIALIZATION ====
     if (!myName) {
         onboardScreen.style.display = 'flex';
     } else {
@@ -52,6 +69,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function initApp() {
         renderContacts();
         loadGlobalChat();
+        startHeartbeat();
+    }
+
+    // ==== HEARTBEAT (KEEPS CONNECTION ALIVE) ====
+    function startHeartbeat() {
+        setInterval(() => {
+            if (peer && !peer.destroyed) {
+                // Subtle pulse to signaling server
+                peer.socket.send({ type: 'HEARTBEAT' });
+            }
+        }, 15000);
     }
 
     // ==== SIDEBAR LOGIC ====
@@ -59,55 +87,45 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.close-sidebar').addEventListener('click', () => sidebar.classList.remove('open'));
     document.getElementById('global-community-btn').addEventListener('click', () => switchChat('global'));
 
-    // ==== PEERJS LOGIC ====
+    // ==== PEERJS / PRIVATE CHAT ====
     peer.on('open', (id) => {
         document.getElementById('my-peer-id').textContent = id;
+        statusText.textContent = 'Ready (Online)';
     });
 
-    peer.on('connection', (conn) => {
-        setupPrivateChat(conn);
+    peer.on('error', (err) => {
+        console.error('PeerJS Error:', err);
+        statusText.textContent = 'Connection Issue... Retrying';
+        setTimeout(() => peer.reconnect(), 3000);
     });
 
     peer.on('call', async (call) => {
-        if (confirm(`Incoming call from ${call.peer}. Answer?`)) {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localStream = stream;
-            document.getElementById('local-video').srcObject = stream;
-            call.answer(stream);
-            handleCall(call);
+        const callerName = "Incoming Call";
+        if (confirm(`${callerName}... Answer?`)) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localStream = stream;
+                document.getElementById('local-video').srcObject = stream;
+                call.answer(stream);
+                handleCall(call);
+            } catch (e) {
+                alert("Camera access failed.");
+            }
         }
     });
 
     document.getElementById('connect-btn').addEventListener('click', () => {
         const friendId = document.getElementById('friend-id-input').value.trim();
         if (friendId) {
-            startPrivateChat(friendId);
+            switchChat('private', friendId);
             document.getElementById('friend-id-input').value = '';
             sidebar.classList.remove('open');
         }
     });
 
-    function startPrivateChat(id) {
-        const conn = peer.connect(id);
-        setupPrivateChat(conn);
-    }
-
-    function setupPrivateChat(conn) {
-        activeFriendId = conn.peer;
-        currentChatType = 'private';
-        document.getElementById('chat-title').textContent = `Chat with ${idTruncate(conn.peer)}`;
-        document.getElementById('start-video-call').style.display = 'flex';
-        chatBody.innerHTML = '';
-        
-        conn.on('data', (data) => {
-            appendMessage(data.sender, data.text, 'received');
-        });
-    }
-
     // ==== CALLING LOGIC ====
     document.getElementById('start-video-call').addEventListener('click', async () => {
         if (!activeFriendId) return;
-        
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localStream = stream;
@@ -115,75 +133,89 @@ document.addEventListener('DOMContentLoaded', () => {
             const call = peer.call(activeFriendId, stream);
             handleCall(call);
         } catch (err) {
-            alert("Camera/Mic access denied or unavailable.");
+            alert("Camera access denied.");
         }
     });
 
     function handleCall(call) {
         currentCall = call;
         callingUI.classList.add('active');
-        
         call.on('stream', (remoteStream) => {
             document.getElementById('remote-video').srcObject = remoteStream;
         });
-
         call.on('close', endCall);
-        call.on('error', endCall);
     }
 
     function endCall() {
         if (currentCall) currentCall.close();
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-        }
+        if (localStream) localStream.getTracks().forEach(t => t.stop());
         callingUI.classList.remove('active');
         currentCall = null;
     }
-
     document.getElementById('end-call-btn').addEventListener('click', endCall);
 
-    // ==== CHAT LOGIC ====
+    // ==== CHAT ENGINE (HYBRID GUN.JS + PEERJS) ====
     function loadGlobalChat() {
         chatBody.innerHTML = '';
         document.getElementById('chat-title').textContent = 'Global Community';
+        document.getElementById('header-avatar').textContent = '🌍';
         document.getElementById('start-video-call').style.display = 'none';
         
-        chatDB.map().on((data, id) => {
+        globalChat.map().on((data, id) => {
             if (data && data.text) {
-                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received');
+                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id);
             }
         });
     }
 
-    function switchChat(type) {
-        currentChatType = type;
-        if (type === 'global') {
-            loadGlobalChat();
-        }
-        sidebar.classList.remove('open');
+    function loadPrivateChat(friendId) {
+        chatBody.innerHTML = '';
+        activeFriendId = friendId;
+        document.getElementById('chat-title').textContent = `Private: ${friendId.substring(0,6)}`;
+        document.getElementById('header-avatar').textContent = '👤';
+        document.getElementById('start-video-call').style.display = 'flex';
+
+        // Use a unique room ID based on both our Peer IDs (alphabetical sort to match)
+        const roomId = [peer.id, friendId].sort().join('_');
+        
+        privateChatRelay.get(roomId).map().on((data, id) => {
+            if (data && data.text) {
+                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id);
+            }
+        });
     }
 
-    sendBtn.addEventListener('click', sendMessage);
-    msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+    function switchChat(type, friendId = null) {
+        currentChatType = type;
+        if (type === 'global') loadGlobalChat();
+        else if (friendId) loadPrivateChat(friendId);
+        sidebar.classList.remove('open');
+    }
 
     function sendMessage() {
         const text = msgInput.value.trim();
         if (!text) return;
 
         if (currentChatType === 'global') {
-            chatDB.set({ sender: myName, text: text, time: Date.now() });
+            globalChat.set({ sender: myName, text: text, time: Date.now() });
         } else if (activeFriendId) {
-            // Private messaging logic (simplified for build)
-            appendMessage(myName, text, 'sent');
+            const roomId = [peer.id, activeFriendId].sort().join('_');
+            privateChatRelay.get(roomId).set({ sender: myName, text: text, time: Date.now() });
         }
 
         msgInput.value = '';
-        chatBody.scrollTop = chatBody.scrollHeight;
     }
 
-    function appendMessage(sender, text, type) {
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    function appendMessage(sender, text, type, id) {
+        // Prevent duplicates
+        if (document.getElementById(`msg-${id}`)) return;
+
         const row = document.createElement('div');
         row.className = `msg-row ${type}`;
+        row.id = `msg-${id}`;
         
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
@@ -205,18 +237,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderContacts() {
-        // Mock contacts for now, can be expanded to storage
-    }
-
-    function idTruncate(id) {
-        return id.substring(0, 6) + '...';
+        // Persistence handled by Gun.js above
     }
 
     // Copy ID Helper
     document.getElementById('copy-id-btn').addEventListener('click', () => {
         const id = document.getElementById('my-peer-id').textContent;
-        navigator.clipboard.writeText(id);
-        alert("ID Copied!");
+        navigator.clipboard.writeText(id).then(() => alert("ID Copied!"));
     });
 
 });
