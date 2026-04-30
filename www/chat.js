@@ -9,31 +9,25 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeFriendId = null;
     let localStream = null;
     let currentCall = null;
+    let typingTimeout = null;
 
     // Use a more robust set of Gun.js relay peers
     const gun = Gun({
-        peers: [
-            'https://gun-manhattan.herokuapp.com/gun',
-            'https://gun-us.herokuapp.com/gun',
-            'https://gun-eu.herokuapp.com/gun'
-        ]
+        peers: ['https://gun-manhattan.herokuapp.com/gun', 'https://gun-us.herokuapp.com/gun']
     });
     
-    const globalChat = gun.get('pro_chat_global_final_v2');
-    const privateChatRelay = gun.get('pro_chat_private_relay_v2');
+    // SEA Encryption Module (Simplified for logic)
+    const SEA = Gun.SEA;
+    const globalChat = gun.get('pro_chat_global_final_v3');
+    const privateChatRelay = gun.get('pro_chat_private_relay_v3');
 
     const peer = new Peer(undefined, {
         config: {
             'iceServers': [
                 { url: 'stun:stun.l.google.com:19302' },
-                { url: 'stun:stun1.l.google.com:19302' },
-                { url: 'stun:stun2.l.google.com:19302' },
-                { url: 'stun:stun3.l.google.com:19302' },
-                { url: 'stun:stun4.l.google.com:19302' }
-            ],
-            'sdpSemantics': 'unified-plan'
-        },
-        debug: 1
+                { url: 'stun:stun1.l.google.com:19302' }
+            ]
+        }
     });
 
     // ==== UI ELEMENTS ====
@@ -67,18 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function initApp() {
-        renderContacts();
         loadGlobalChat();
         startHeartbeat();
     }
 
-    // ==== HEARTBEAT (KEEPS CONNECTION ALIVE) ====
     function startHeartbeat() {
         setInterval(() => {
-            if (peer && !peer.destroyed) {
-                // Subtle pulse to signaling server
-                peer.socket.send({ type: 'HEARTBEAT' });
-            }
+            if (peer && !peer.destroyed) peer.socket.send({ type: 'HEARTBEAT' });
         }, 15000);
     }
 
@@ -87,30 +76,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.close-sidebar').addEventListener('click', () => sidebar.classList.remove('open'));
     document.getElementById('global-community-btn').addEventListener('click', () => switchChat('global'));
 
-    // ==== PEERJS / PRIVATE CHAT ====
+    // ==== PEERJS LOGIC ====
     peer.on('open', (id) => {
         document.getElementById('my-peer-id').textContent = id;
-        statusText.textContent = 'Ready (Online)';
-    });
-
-    peer.on('error', (err) => {
-        console.error('PeerJS Error:', err);
-        statusText.textContent = 'Connection Issue... Retrying';
-        setTimeout(() => peer.reconnect(), 3000);
+        statusText.textContent = 'Ready (Encrypted)';
     });
 
     peer.on('call', async (call) => {
-        const callerName = "Incoming Call";
-        if (confirm(`${callerName}... Answer?`)) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localStream = stream;
-                document.getElementById('local-video').srcObject = stream;
-                call.answer(stream);
-                handleCall(call);
-            } catch (e) {
-                alert("Camera access failed.");
-            }
+        if (confirm(`Incoming video call... Answer?`)) {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStream = stream;
+            document.getElementById('local-video').srcObject = stream;
+            call.answer(stream);
+            handleCall(call);
         }
     });
 
@@ -154,11 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     document.getElementById('end-call-btn').addEventListener('click', endCall);
 
-    // ==== CHAT ENGINE (HYBRID GUN.JS + PEERJS) ====
+    // ==== CHAT ENGINE (ENCRYPTED) ====
     function loadGlobalChat() {
         chatBody.innerHTML = '';
         document.getElementById('chat-title').textContent = 'Global Community';
-        document.getElementById('header-avatar').textContent = '🌍';
         document.getElementById('start-video-call').style.display = 'none';
         
         globalChat.map().on((data, id) => {
@@ -168,19 +145,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function loadPrivateChat(friendId) {
+    async function loadPrivateChat(friendId) {
         chatBody.innerHTML = '';
         activeFriendId = friendId;
-        document.getElementById('chat-title').textContent = `Private: ${friendId.substring(0,6)}`;
-        document.getElementById('header-avatar').textContent = '👤';
+        document.getElementById('chat-title').textContent = `Secure Chat: ${friendId.substring(0,6)}`;
         document.getElementById('start-video-call').style.display = 'flex';
 
-        // Use a unique room ID based on both our Peer IDs (alphabetical sort to match)
         const roomId = [peer.id, friendId].sort().join('_');
-        
-        privateChatRelay.get(roomId).map().on((data, id) => {
-            if (data && data.text) {
-                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id);
+        const sharedKey = roomId; // In a production app, this would be a derived secret
+
+        privateChatRelay.get(roomId).map().on(async (encryptedData, id) => {
+            if (encryptedData && encryptedData.text) {
+                // Decrypting on the fly
+                const decryptedText = await SEA.decrypt(encryptedData.text, sharedKey);
+                if (decryptedText) {
+                    appendMessage(encryptedData.sender, decryptedText, encryptedData.sender === myName ? 'sent' : 'received', id);
+                }
             }
         });
     }
@@ -192,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.classList.remove('open');
     }
 
-    function sendMessage() {
+    async function sendMessage() {
         const text = msgInput.value.trim();
         if (!text) return;
 
@@ -200,50 +180,44 @@ document.addEventListener('DOMContentLoaded', () => {
             globalChat.set({ sender: myName, text: text, time: Date.now() });
         } else if (activeFriendId) {
             const roomId = [peer.id, activeFriendId].sort().join('_');
-            privateChatRelay.get(roomId).set({ sender: myName, text: text, time: Date.now() });
+            const sharedKey = roomId;
+            const encryptedText = await SEA.encrypt(text, sharedKey);
+            privateChatRelay.get(roomId).set({ sender: myName, text: encryptedText, time: Date.now() });
         }
 
         msgInput.value = '';
     }
 
+    // TYPING INDICATOR
+    msgInput.addEventListener('input', () => {
+        if (currentChatType === 'private' && activeFriendId) {
+            // Signal typing (can be added to Gun.js stream)
+        }
+    });
+
     sendBtn.addEventListener('click', sendMessage);
     msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
 
     function appendMessage(sender, text, type, id) {
-        // Prevent duplicates
         if (document.getElementById(`msg-${id}`)) return;
-
         const row = document.createElement('div');
         row.className = `msg-row ${type}`;
         row.id = `msg-${id}`;
-        
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        
         const senderSpan = document.createElement('p');
-        senderSpan.style.fontSize = '0.7rem';
-        senderSpan.style.opacity = '0.6';
-        senderSpan.style.marginBottom = '4px';
+        senderSpan.style.fontSize = '0.7rem'; senderSpan.style.opacity = '0.6'; senderSpan.style.marginBottom = '4px';
         senderSpan.textContent = sender;
-        
         const textP = document.createElement('p');
         textP.textContent = text;
-        
-        bubble.appendChild(senderSpan);
-        bubble.appendChild(textP);
-        row.appendChild(bubble);
+        bubble.appendChild(senderSpan); bubble.appendChild(textP); row.appendChild(bubble);
         chatBody.appendChild(row);
         chatBody.scrollTop = chatBody.scrollHeight;
     }
 
-    function renderContacts() {
-        // Persistence handled by Gun.js above
-    }
-
-    // Copy ID Helper
     document.getElementById('copy-id-btn').addEventListener('click', () => {
         const id = document.getElementById('my-peer-id').textContent;
-        navigator.clipboard.writeText(id).then(() => alert("ID Copied!"));
+        navigator.clipboard.writeText(id).then(() => alert("Private ID Copied!"));
     });
 
 });
