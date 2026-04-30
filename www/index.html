@@ -6,226 +6,123 @@
     <title>Pro Chat Global</title>
     
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e293b">
+    <meta name="theme-color" content="#0f172a">
     <link rel="apple-touch-icon" href="icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <link rel="stylesheet" href="chat.css">
-    <!-- Expanded Font Library -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Roboto:wght@400;500&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;700&family=Playfair+Display:ital,wght@0,700;1,700&family=Lora:wght@400;700&family=Oswald:wght@400;700&family=Ubuntu:wght@400;700&family=Courier+Prime&family=Dancing+Script:wght@700&family=Pacifico&family=Orbitron:wght@400;700&family=Fira+Code&family=Quicksand:wght@500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fira+Code&display=swap" rel="stylesheet">
     
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
 </head>
 <body>
-    <!-- ONE-TIME ONBOARDING SCREEN -->
-    <div id="onboarding-screen" class="onboarding-screen hidden">
-        <div class="onboarding-card">
-            <div class="onboard-header">
-                <h2>Welcome to Pro Chat</h2>
-                <p>Let's get your app ready for the world.</p>
+
+    <!-- VIDEO CALL OVERLAY -->
+    <div id="calling-ui">
+        <div class="remote-video-container">
+            <video id="remote-video" autoplay playsinline></video>
+        </div>
+        <div class="local-video-preview">
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+        <div class="call-info" style="position:absolute; top:80px; text-align:center;">
+            <h1 id="call-name">Calling...</h1>
+            <p id="call-status">00:00</p>
+        </div>
+        <div class="call-controls">
+            <button class="call-btn mute-call" id="toggle-mic">🎙️</button>
+            <button class="call-btn end-call" id="end-call-btn">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+            </button>
+            <button class="call-btn mute-call" id="toggle-cam">📹</button>
+        </div>
+    </div>
+
+    <div class="app-wrapper">
+        <!-- Sidebar -->
+        <div id="contacts-sidebar" class="sidebar">
+            <div class="sidebar-title">
+                <span>Contacts</span>
+                <span class="close-sidebar">&times;</span>
             </div>
             
-            <div class="onboarding-step">
-                <label>1. Choose your Display Name</label>
-                <input type="text" id="onboard-name" placeholder="E.g. John Doe" autocomplete="off">
+            <div class="id-card">
+                <p>Your Private ID</p>
+                <h3 id="my-peer-id">Generating...</h3>
+                <button id="copy-id-btn" class="action-btn" style="background:none; color:var(--accent-color); font-size:0.8rem; margin-top:5px; padding:0; text-decoration:underline;">Copy ID</button>
             </div>
 
-            <div class="onboarding-step">
-                <label>2. Enable Push Notifications</label>
-                <p class="step-desc">Get alerted when friends message you.</p>
-                <button id="onboard-notify-btn" class="action-btn">Allow Notifications 🔔</button>
-            </div>
-
-            <div class="onboarding-step">
-                <label>3. Enable Camera & Mic</label>
-                <p class="step-desc">Required for Voice Notes & Video Calling.</p>
-                <button id="onboard-media-btn" class="action-btn">Allow Camera & Mic 📹</button>
-            </div>
-
-            <div class="onboarding-footer">
-                <button id="finish-onboard-btn" class="action-btn success">Start Chatting 🚀</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Contacts Sidebar -->
-    <div id="contacts-sidebar" class="sidebar">
-        <div class="sidebar-header">
-            <h2>Chats</h2>
-            <span class="close-sidebar">&times;</span>
-        </div>
-        <div class="community-panel">
-            <div class="contact-item" id="global-community-btn">
-                <div class="c-avatar" style="background:#8b5cf6;">🌍</div>
-                <div class="c-info">
-                    <h4>Global Community</h4>
-                    <p>Public serverless chat</p>
+            <div class="sidebar-section" style="margin-top:20px;">
+                <p style="font-size:0.8rem; opacity:0.5; margin-bottom:10px;">GLOBAL</p>
+                <div class="contact-item" id="global-community-btn" style="background:rgba(56,189,248,0.1); padding:12px; border-radius:15px; display:flex; align-items:center; gap:12px; cursor:pointer;">
+                    <div class="avatar-circle" style="background:#8b5cf6;">🌍</div>
+                    <div>
+                        <h4 style="font-size:0.9rem;">Global Community</h4>
+                        <p style="font-size:0.7rem; opacity:0.6;">Public Chat</p>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="id-panel">
-            <p>Your Private ID:</p>
-            <h3 id="my-peer-id" title="Click to copy">Generating...</h3>
-            <button id="copy-id-btn" class="action-btn">Copy My ID</button>
-            <button id="install-pwa-btn" class="action-btn" style="display:none; background: #38bdf8; margin-top: 15px;">Download App 📥</button>
-        </div>
-        <div class="connect-panel">
-            <p>Add Private Contact:</p>
-            <input type="text" id="friend-name-input" placeholder="Name (e.g. John)">
-            <input type="text" id="friend-id-input" placeholder="Paste ID here...">
-            <button id="connect-btn" class="action-btn success">Save & Connect</button>
-        </div>
-        <div class="contact-list" id="contact-list"></div>
-    </div>
 
-    <!-- Video Call Modal -->
-    <div id="video-modal" class="hidden">
-        <video id="remote-video" autoplay playsinline></video>
-        <video id="local-video" autoplay playsinline muted></video>
-        <div class="video-controls">
-            <button id="end-call-btn" class="action-btn danger" style="width:150px; border-radius:30px;">End Call</button>
-        </div>
-    </div>
+            <div class="sidebar-section" style="margin-top:20px; flex:1; display:flex; flex-direction:column;">
+                <p style="font-size:0.8rem; opacity:0.5; margin-bottom:10px;">PRIVATE CHATS</p>
+                <div id="contact-list" style="display:flex; flex-direction:column; gap:10px; overflow-y:auto;"></div>
+            </div>
 
-    <!-- Main Chat Interface -->
-    <div class="chat-container">
-        <header class="chat-header">
-            <div class="header-info">
-                <div class="menu-icon" id="open-sidebar">
+            <div class="add-friend" style="margin-top:20px;">
+                <input type="text" id="friend-id-input" placeholder="Enter Friend ID..." style="width:100%; padding:12px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:white; outline:none; margin-bottom:10px;">
+                <button id="connect-btn" class="action-btn" style="width:100%; background:var(--accent-color); color:#0f172a; padding:12px; border-radius:15px; font-weight:700; border:none; cursor:pointer;">Add & Chat</button>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="main-header">
+            <div class="user-profile">
+                <div id="open-sidebar" style="cursor:pointer; margin-right:5px;">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
                 </div>
-                <div class="avatar" id="header-avatar" style="display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:1.2rem; background:#8b5cf6;">🌍</div>
-                <div class="user-details">
+                <div class="avatar-circle" id="header-avatar">🌍</div>
+                <div class="user-info">
                     <h2 id="chat-title">Global Community</h2>
-                    <div class="status" id="connection-status">Online</div>
+                    <div class="status-indicator" id="connection-status">Online</div>
                 </div>
             </div>
-            <div class="header-actions" style="display:flex; gap:15px;">
-                <button id="video-call-btn" title="Video Call" style="display:none;">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </button>
-                <button id="settings-btn" title="Settings">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-                    </svg>
-                </button>
+            <div class="header-btns">
+                <div class="icon-btn call-btn" id="start-video-call" style="display:none;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                </div>
+                <div class="icon-btn" id="settings-btn">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                </div>
             </div>
         </header>
-        
-        <main class="chat-main" id="chat-messages">
-            <div class="system-msg">Welcome to the Global Community! Swipe right on a message to reply.</div>
-        </main>
-        
-        <div id="typing-indicator" class="typing-indicator hidden">
-            <span></span><span></span><span></span>
-        </div>
-        
-        <div class="smart-replies" id="smart-replies">
-            <span class="reply-chip">Yes, absolutely!</span>
-            <span class="reply-chip">I'm busy right now.</span>
-            <span class="reply-chip">Call me later?</span>
-            <span class="reply-chip">Okay, sounds good 👍</span>
-        </div>
 
-        <div id="reply-preview" class="hidden">
-            <div class="reply-content">Replying to: <span id="reply-text-preview"></span></div>
-            <span class="cancel-reply" id="cancel-reply-btn">&times;</span>
-        </div>
+        <!-- Chat Area -->
+        <main class="chat-body" id="chat-messages"></main>
 
-        <footer class="chat-input-area">
-            <button id="emoji-btn" title="Emojis">😀</button>
-            <input type="text" id="msg-input" placeholder="Message..." autocomplete="off">
-            <button id="attach-btn" title="Attach Image">📎</button>
-            <input type="file" id="image-upload" accept="image/*" style="display:none;">
-            <button id="send-btn" class="mic-mode">
-                <svg id="mic-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"></path></svg>
-                <svg id="send-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+        <!-- Input -->
+        <footer class="input-zone">
+            <div id="emoji-trigger" style="cursor:pointer; font-size:1.2rem;">😊</div>
+            <div class="input-wrapper">
+                <input type="text" id="msg-input" placeholder="Type a message..." autocomplete="off">
+            </div>
+            <button id="send-btn">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
         </footer>
-        
-        <div id="emoji-tray" class="emoji-tray hidden">
-            <span>😂</span><span>😍</span><span>🥺</span><span>👍</span><span>🙏</span><span>🔥</span><span>❤️</span><span>✨</span><span>🎉</span><span>😊</span><span>😅</span><span>😎</span><span>🙌</span><span>💯</span><span>💔</span>
+    </div>
+
+    <!-- Onboarding -->
+    <div id="onboarding-screen" class="modal show" style="display:flex;">
+        <div class="modal-content" style="text-align:center;">
+            <h2 style="color:var(--accent-color); margin-bottom:10px;">Welcome</h2>
+            <p style="opacity:0.6; font-size:0.9rem; margin-bottom:20px;">Choose a name to start chatting</p>
+            <input type="text" id="onboard-name" placeholder="Your Name" style="width:100%; padding:15px; border-radius:15px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:white; outline:none; margin-bottom:20px; text-align:center; font-size:1.1rem;">
+            <button id="finish-onboard-btn" class="action-btn" style="width:100%; background:var(--accent-color); color:#0f172a; padding:15px; border-radius:15px; font-weight:700; border:none; cursor:pointer;" disabled>Enter App</button>
         </div>
     </div>
 
-    <!-- Ultra Customization Modal -->
-    <div id="settings-modal" class="modal">
-        <div class="modal-content advanced-settings">
-            <div class="modal-header">
-                <h3>Design Studio</h3>
-                <span class="close-btn">&times;</span>
-            </div>
-            <div class="modal-body ultra-custom" style="overflow-y: auto; max-height: 70vh; padding-right: 10px;">
-                
-                <h4 class="settings-section-title">✨ Typography Styles</h4>
-                <div class="setting-group">
-                    <label>Choose Font</label>
-                    <select id="font-select">
-                        <option value="'Inter', sans-serif">Modern (Inter)</option>
-                        <option value="'Roboto', sans-serif">Standard (Roboto)</option>
-                        <option value="'Poppins', sans-serif">Elegant (Poppins)</option>
-                        <option value="'Montserrat', sans-serif">Bold (Montserrat)</option>
-                        <option value="'Open Sans', sans-serif">Clean (Open Sans)</option>
-                        <option value="'Playfair Display', serif">Luxury (Playfair)</option>
-                        <option value="'Lora', serif">Classic (Lora)</option>
-                        <option value="'Ubuntu', sans-serif">Digital (Ubuntu)</option>
-                        <option value="'Oswald', sans-serif">Condensed (Oswald)</option>
-                        <option value="'Courier Prime', monospace">Typewriter (Courier)</option>
-                        <option value="'Fira Code', monospace">Developer (Fira Code)</option>
-                        <option value="'Dancing Script', cursive">Handwritten (Dancing)</option>
-                        <option value="'Pacifico', cursive">Retro (Pacifico)</option>
-                        <option value="'Orbitron', sans-serif">Futuristic (Orbitron)</option>
-                        <option value="'Quicksand', sans-serif">Friendly (Quicksand)</option>
-                    </select>
-                </div>
-                
-                <h4 class="settings-section-title">🎨 Theme Palette (30+ Shades)</h4>
-                <p class="step-desc">Tap a shade to instantly theme your chat window.</p>
-                <div class="color-palette-grid" id="theme-palette">
-                    <!-- 30+ colors injected here -->
-                </div>
-
-                <h4 class="settings-section-title">⚙️ Detailed Controls</h4>
-                <div class="setting-group slider-group">
-                    <label>Font Size</label>
-                    <input type="range" id="font-size" min="12" max="24" value="15">
-                </div>
-                <div class="setting-group slider-group">
-                    <label>Bubble Roundness</label>
-                    <input type="range" id="bubble-radius" min="0" max="30" value="12">
-                </div>
-                <div class="setting-group slider-group">
-                    <label>Glass Blur Intensity</label>
-                    <input type="range" id="glass-blur" min="0" max="40" value="8">
-                </div>
-                
-                <h4 class="settings-section-title">🖼️ Media & Custom</h4>
-                <div class="setting-group">
-                    <label>Chat Wallpaper</label>
-                    <button id="modal-bg-btn" class="action-btn" style="width:auto; padding: 5px 15px;">Upload Image</button>
-                    <input type="file" id="bg-input" accept="image/*" style="display: none;">
-                </div>
-                <div class="custom-color-pickers">
-                    <div class="color-picker-item"><label>Header</label><input type="color" id="color-header" value="#1e293b"></div>
-                    <div class="color-picker-item"><label>Sent</label><input type="color" id="color-sent" value="#6366f1"></div>
-                    <div class="color-picker-item"><label>Received</label><input type="color" id="color-received" value="#ffffff"></div>
-                    <div class="color-picker-item"><label>Text</label><input type="color" id="color-text" value="#ffffff"></div>
-                </div>
-            </div>
-            <div class="modal-footer" style="flex-direction: column; gap: 10px;">
-                <button id="save-settings-btn" class="action-btn success">Apply My Style</button>
-                <button id="reset-settings-btn" class="action-btn danger">Reset All Design</button>
-            </div>
-        </div>
-    </div>
-    
     <script src="chat.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.log('SW error', e)));
-        }
-    </script>
 </body>
 </html>
