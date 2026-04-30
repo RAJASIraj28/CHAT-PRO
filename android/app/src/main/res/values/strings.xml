@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pro Chat Global</string>
+    <string name="title_activity_main">Pro Chat Global</string>
+    <string name="package_name">com.prochat.app</string>
+    <string name="custom_url_scheme">com.prochat.app</string>
+</resources>

@@ -1,0 +1,8 @@
+{
+  "appId": "com.prochat.app",
+  "appName": "Pro Chat Global",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

@@ -1,4 +1,4 @@
-# 🚀 Pro Chat Global (Open Source)
+# 🚀 Pro Chat Global (Native Android Edition)
 
 A high-tech, serverless, peer-to-peer (P2P) messaging application with a premium glassmorphic UI. Openly developed for the world to use, modify, and improve.
 
@@ -11,7 +11,14 @@ A high-tech, serverless, peer-to-peer (P2P) messaging application with a premium
 - **Disappearing Messages:** Built-in privacy timers for sensitive conversations.
 - **Swipe-to-Reply:** Intuitive mobile gestures for threaded conversations.
 
-## 📱 Installation on Phone
+## 📥 Download the Android App (.APK)
+This project is set up to automatically build a native Android app for you!
+1. Go to the **Actions** tab in this GitHub repository.
+2. Click on the latest run titled **"Build Android APK"**.
+3. Scroll down to **Artifacts** and download the **ProChat-Android-Debug** file.
+4. Extract the ZIP and install the `.apk` on your Android phone.
+
+## 📱 Installation via Browser (PWA)
 1. Open the [live link](https://YOUR-USERNAME.github.io/ProChatApp/) in your mobile browser.
 2. Complete the onboarding (Name, Permissions).
 3. Open the sidebar menu and tap the blue **"Download App 📥"** button. (If you don't see it, select **"Add to Home Screen"** from your browser menu).
