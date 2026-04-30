@@ -1,6 +1,6 @@
-# 🚀 Pro Chat Global
+# 🚀 Pro Chat Global (Open Source)
 
-A high-tech, serverless, peer-to-peer (P2P) messaging application with a premium glassmorphic UI.
+A high-tech, serverless, peer-to-peer (P2P) messaging application with a premium glassmorphic UI. Openly developed for the world to use, modify, and improve.
 
 ## ✨ Features
 - **P2P Private Messaging:** Secure, direct communication via WebRTC (PeerJS).
@@ -12,9 +12,9 @@ A high-tech, serverless, peer-to-peer (P2P) messaging application with a premium
 - **Swipe-to-Reply:** Intuitive mobile gestures for threaded conversations.
 
 ## 📱 Installation on Phone
-1. Open the [live link](https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/) in your mobile browser.
+1. Open the [live link](https://YOUR-USERNAME.github.io/ProChatApp/) in your mobile browser.
 2. Complete the onboarding (Name, Permissions).
-3. Select **"Add to Home Screen"** or **"Install App"** from your browser menu.
+3. Open the sidebar menu and tap the blue **"Download App 📥"** button. (If you don't see it, select **"Add to Home Screen"** from your browser menu).
 4. Launch the app from your home screen for a full native experience.
 
 ## 🛠️ Deployment to GitHub Pages

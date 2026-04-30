@@ -1,5 +1,25 @@
 document.addEventListener('DOMContentLoaded', () => {
     
+    // ==== PWA INSTALL LOGIC ====
+    let deferredPrompt;
+    const installBtn = document.getElementById('install-pwa-btn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.style.display = 'block';
+    });
+
+    installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            installBtn.style.display = 'none';
+        }
+        deferredPrompt = null;
+    });
+
     // ==== ONBOARDING SCREEN LOGIC ====
     const onboardScreen = document.getElementById('onboarding-screen');
     const nameInput = document.getElementById('onboard-name');
