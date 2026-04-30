@@ -101,7 +101,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==== PRIVATE CHAT (PEERJS) ====
-    const peer = new Peer();
+    const peer = new Peer(undefined, {
+        config: {
+            'iceServers': [
+                { url: 'stun:stun.l.google.com:19302' },
+                { url: 'stun:stun1.l.google.com:19302' },
+                { url: 'stun:stun2.l.google.com:19302' }
+            ]
+        }
+    });
     let activeConnection = null;
     let myPeerId = '';
     let contacts = JSON.parse(localStorage.getItem('p2p_contacts')) || {};
