@@ -1,91 +1,75 @@
 :root {
     --bg-color: #020617;
     --accent-color: #0ea5e9;
-    --accent-glow: rgba(14, 165, 233, 0.4);
     --sent-bg: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
     --received-bg: rgba(30, 41, 59, 0.7);
     --glass-border: rgba(255, 255, 255, 0.1);
     --text-main: #f8fafc;
-    --app-font: 'Poppins', sans-serif;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--app-font); -webkit-font-smoothing: antialiased; }
-body { background: var(--bg-color); height: 100vh; height: 100dvh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; -webkit-font-smoothing: antialiased; }
+body { background: var(--bg-color); height: 100dvh; overflow: hidden; width: 100vw; position: fixed; }
 
-/* DYNAMIC MESH BACKGROUND */
+/* THE "GOLDEN RATIO" WRAPPER */
 .app-wrapper { 
     width: 100%; height: 100%; display: flex; flex-direction: column; position: relative; 
     background-color: #020617;
     background-image: 
-        radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
-        radial-gradient(at 100% 100%, rgba(20, 184, 166, 0.15) 0px, transparent 50%),
-        radial-gradient(at 0% 100%, rgba(244, 63, 94, 0.15) 0px, transparent 50%);
-    animation: mesh-move 20s ease infinite alternate;
-}
-@keyframes mesh-move {
-    0% { background-position: 0% 0%; }
-    100% { background-position: 100% 100%; }
+        radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
 }
 
-/* HEADER STYLE */
+/* HEADER - FIXED & CENTERED */
 .main-header { 
-    padding: 20px; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(25px); 
+    height: 70px; padding: 0 20px; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(25px); 
     border-bottom: 1px solid var(--glass-border); display: flex; justify-content: space-between; align-items: center;
-}
-.avatar-circle { 
-    width: 45px; height: 45px; border-radius: 16px; background: var(--sent-bg); 
-    display: flex; justify-content: center; align-items: center; font-weight: 700;
-    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    z-index: 100;
 }
 
-/* CHAT BUBBLES */
-.chat-body { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
+/* CHAT BODY - FLUID */
+.chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.msg-row { display: flex; width: 100%; margin: 4px 0; }
+.msg-row.sent { justify-content: flex-end; }
+.msg-row.received { justify-content: flex-start; }
+
 .bubble { 
-    max-width: 82%; padding: 14px 20px; border-radius: 22px; font-size: 0.95rem; line-height: 1.6; 
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2); transition: 0.3s;
+    max-width: 75%; padding: 12px 16px; border-radius: 20px; font-size: 0.9rem; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
 }
-.sent .bubble { 
-    background: var(--sent-bg); color: white; border-bottom-right-radius: 4px; 
-    box-shadow: 0 4px 15px var(--accent-glow);
-}
-.received .bubble { 
-    background: var(--received-bg); backdrop-filter: blur(15px); color: white; 
-    border: 1px solid var(--glass-border); border-bottom-left-radius: 4px;
-}
+.sent .bubble { background: var(--sent-bg); color: white; border-bottom-right-radius: 4px; }
+.received .bubble { background: var(--received-bg); border: 1px solid var(--glass-border); border-bottom-left-radius: 4px; }
 
-/* INPUT ZONE */
+/* INPUT ZONE - PERFECTLY BALANCED */
 .input-zone { 
-    padding: 20px; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(25px); 
-    display: flex; align-items: center; gap: 15px; border-top: 1px solid var(--glass-border);
+    padding: 15px 20px; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(25px); 
+    display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--glass-border);
+    margin-bottom: env(safe-area-inset-bottom);
 }
-#msg-input { 
-    flex: 1; padding: 14px 22px; background: rgba(255,255,255,0.05); 
-    border: 1px solid var(--glass-border); border-radius: 30px; color: white; outline: none; transition: 0.3s;
-}
-#msg-input:focus { border-color: var(--accent-color); background: rgba(255,255,255,0.08); }
+.input-wrapper { flex: 1; display: flex; align-items: center; background: rgba(255,255,255,0.05); border-radius: 25px; border: 1px solid var(--glass-border); padding: 0 15px; }
+#msg-input { flex: 1; padding: 12px 0; background: transparent; border: none; color: white; outline: none; font-size: 1rem; }
 
 #send-btn { 
-    width: 48px; height: 48px; border-radius: 50%; background: var(--sent-bg); 
+    width: 45px; height: 45px; border-radius: 50%; background: var(--sent-bg); 
     border: none; color: white; display: flex; justify-content: center; align-items: center;
-    box-shadow: 0 0 20px var(--accent-glow); transition: 0.3s;
+    box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3);
 }
-#send-btn:hover { transform: scale(1.1) rotate(-10deg); }
 
-/* SIDEBAR */
+/* SIDEBAR - NOW A PROPER FLOATING DRAWER */
 .sidebar { 
-    position: absolute; left: -100%; top: 0; bottom: 0; width: 85%; max-width: 340px;
-    background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(40px); z-index: 1000;
-    transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1); border-right: 1px solid var(--glass-border);
+    position: fixed; left: -100%; top: 0; bottom: 0; width: 85%; max-width: 300px;
+    background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(40px); z-index: 2000;
+    transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-right: 1px solid var(--glass-border);
+    box-shadow: 20px 0 50px rgba(0,0,0,0.5);
 }
 .sidebar.open { transform: translateX(100%); }
 
-/* ANIMATIONS */
-@keyframes popIn {
-    0% { transform: scale(0.9) translateY(15px); opacity: 0; }
-    100% { transform: scale(1) translateY(0); opacity: 1; }
-}
-.msg-row { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+/* MODALS & OVERLAYS */
+#calling-ui { display: none; position: fixed; inset: 0; background: #000; z-index: 5000; }
+#calling-ui.active { display: flex; flex-direction: column; }
 
-/* AUDIO PLAYER CUSTOM */
-audio { filter: invert(1) hue-rotate(180deg); opacity: 0.8; height: 32px; width: 220px; }
+#onboarding-screen { position: fixed; inset: 0; z-index: 10000; background: #020617; display: flex; justify-content: center; align-items: center; }
+
+/* UTILS */
+.avatar-circle { width: 40px; height: 40px; border-radius: 12px; background: var(--sent-bg); display: flex; justify-content: center; align-items: center; font-weight: 700; }
+@keyframes popIn { 0% { transform: scale(0.95) translateY(10px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+.msg-row { animation: popIn 0.3s ease-out forwards; }
