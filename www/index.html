@@ -2,139 +2,132 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pro Chat Global</title>
-    
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#0f172a">
-    <link rel="apple-touch-icon" href="icon.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <title>Pro Chat</title>
+    <meta name="theme-color" content="#020617">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
     <link rel="stylesheet" href="chat.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fira+Code&display=swap" rel="stylesheet">
-    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
 </head>
 <body>
 
-    <!-- VIDEO CALL OVERLAY -->
-    <div id="calling-ui">
-        <div class="remote-video-container">
-            <video id="remote-video" autoplay playsinline></video>
+<!-- CALL OVERLAY -->
+<div id="calling-ui">
+    <video id="remote-video" autoplay playsinline></video>
+    <video id="local-video" autoplay playsinline muted></video>
+    <div class="call-top">
+        <p id="call-status">Connecting...</p>
+    </div>
+    <div class="call-controls">
+        <button class="ctrl-btn" id="toggle-mic">🎙️</button>
+        <button class="ctrl-btn end" id="end-call-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08C.11 12.9 0 12.65 0 12.37c0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+        </button>
+        <button class="ctrl-btn" id="toggle-cam">📹</button>
+    </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+        <div class="sidebar-head">
+            <span>Contacts</span>
+            <button id="close-sidebar" class="close-btn">✕</button>
         </div>
-        <div class="local-video-preview">
-            <video id="local-video" autoplay playsinline muted></video>
+
+        <div class="my-id-card">
+            <p class="label">Your Private ID</p>
+            <p id="my-peer-id" class="id-val">Loading...</p>
+            <button id="copy-id-btn" class="copy-btn">Copy ID</button>
         </div>
-        <div class="call-info" style="position:absolute; top:80px; text-align:center;">
-            <h1 id="call-name">Calling...</h1>
-            <p id="call-status">00:00</p>
+
+        <div class="sidebar-section">
+            <p class="section-label">CHATS</p>
+            <div id="global-btn" class="contact-row active-contact">
+                <div class="c-avatar">🌍</div>
+                <div class="c-info">
+                    <h4>Global Community</h4>
+                    <p>Public Chat</p>
+                </div>
+            </div>
         </div>
-        <div class="call-controls">
-            <button class="call-btn mute-call" id="toggle-mic">🎙️</button>
-            <button class="call-btn end-call" id="end-call-btn">
-                <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+
+        <div class="sidebar-section grow">
+            <p class="section-label">PRIVATE</p>
+            <div id="contact-list"></div>
+        </div>
+
+        <div class="add-contact">
+            <input id="friend-id-input" type="text" placeholder="Paste Friend's ID...">
+            <button id="connect-btn">Add Contact</button>
+        </div>
+    </div>
+</div>
+<div id="sidebar-overlay" class="sidebar-overlay"></div>
+
+<!-- MAIN APP -->
+<div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-left">
+            <button id="open-sidebar" class="icon-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
             </button>
-            <button class="call-btn mute-call" id="toggle-cam">📹</button>
-        </div>
-    </div>
-
-    <div class="app-wrapper">
-        <!-- Sidebar -->
-        <div id="contacts-sidebar" class="sidebar">
-            <div class="sidebar-title">
-                <span>Contacts</span>
-                <span class="close-sidebar">&times;</span>
-            </div>
-            
-            <div class="id-card">
-                <p>Your Private ID</p>
-                <h3 id="my-peer-id">Generating...</h3>
-                <button id="copy-id-btn" class="action-btn" style="background:none; color:var(--accent-color); font-size:0.8rem; margin-top:5px; padding:0; text-decoration:underline;">Copy ID</button>
-            </div>
-
-            <div class="sidebar-section" style="margin-top:20px;">
-                <p style="font-size:0.8rem; opacity:0.5; margin-bottom:10px;">GLOBAL</p>
-                <div class="contact-item" id="global-community-btn" style="background:rgba(56,189,248,0.1); padding:12px; border-radius:15px; display:flex; align-items:center; gap:12px; cursor:pointer;">
-                    <div class="avatar-circle" style="background:#8b5cf6;">🌍</div>
-                    <div>
-                        <h4 style="font-size:0.9rem;">Global Community</h4>
-                        <p style="font-size:0.7rem; opacity:0.6;">Public Chat</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="sidebar-section" style="margin-top:20px; flex:1; display:flex; flex-direction:column;">
-                <p style="font-size:0.8rem; opacity:0.5; margin-bottom:10px;">PRIVATE CHATS</p>
-                <div id="contact-list" style="display:flex; flex-direction:column; gap:10px; overflow-y:auto;"></div>
-            </div>
-
-            <div class="add-friend" style="margin-top:20px;">
-                <input type="text" id="friend-id-input" placeholder="Enter Friend ID..." style="width:100%; padding:12px; border-radius:15px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.05); color:white; outline:none; margin-bottom:10px;">
-                <button id="connect-btn" class="action-btn" style="width:100%; background:var(--accent-color); color:#0f172a; padding:12px; border-radius:15px; font-weight:700; border:none; cursor:pointer;">Add & Chat</button>
+            <div class="header-info">
+                <span id="chat-title">Global Community</span>
+                <span id="status-text" class="status">● Online</span>
             </div>
         </div>
-
-        <!-- Header -->
-        <header class="main-header">
-            <div class="user-profile">
-                <div id="open-sidebar" style="cursor:pointer; margin-right:5px;">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-                </div>
-                <div class="avatar-circle" id="header-avatar">🌍</div>
-                <div class="user-info">
-                    <h2 id="chat-title">Global Community</h2>
-                    <div class="status-indicator" id="connection-status">Online</div>
-                </div>
-            </div>
-            <div class="header-btns">
-                <div class="icon-btn call-btn" id="start-video-call" style="display:none;">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </div>
-                <div class="icon-btn" id="settings-btn">
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                </div>
-            </div>
-        </header>
-
-        <!-- Chat Area -->
-        <main class="chat-body" id="chat-messages"></main>
-
-        <!-- Input -->
-        <footer class="input-zone">
-            <div id="emoji-trigger" style="cursor:pointer; font-size:1.2rem;">😊</div>
-            <div class="input-wrapper">
-                <input type="text" id="msg-input" placeholder="Type a message..." autocomplete="off">
-            </div>
-            <button id="voice-btn" class="icon-btn" style="background:rgba(255,255,255,0.1); margin-right:5px; border:none;">🎙️</button>
-            <button id="send-btn">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        <div class="header-right">
+            <button id="video-call-btn" class="icon-btn hidden">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
             </button>
-        </footer>
-    </div>
-
-    <!-- VOICE RECORDING OVERLAY -->
-    <div id="voice-overlay" style="position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.9); backdrop-filter:blur(10px); padding:10px 20px; border-radius:30px; display:none; align-items:center; gap:15px; border:1px solid var(--accent-color); z-index:100;">
-        <div class="voice-wave" style="display:flex; gap:3px; align-items:center;">
-            <div style="width:3px; height:15px; background:var(--accent-color); border-radius:3px; animation: bounce 0.5s infinite alternate;"></div>
-            <div style="width:3px; height:25px; background:var(--accent-color); border-radius:3px; animation: bounce 0.5s infinite alternate 0.1s;"></div>
-            <div style="width:3px; height:15px; background:var(--accent-color); border-radius:3px; animation: bounce 0.5s infinite alternate 0.2s;"></div>
         </div>
-        <span id="voice-timer">00:00</span>
-    </div>
-    <style>@keyframes bounce { from { height: 10px; } to { height: 25px; } }</style>
+    </header>
 
-    <!-- Onboarding -->
-    <div id="onboarding-screen" class="modal show" style="display:flex;">
-        <div class="modal-content" style="text-align:center;">
-            <h2 style="color:var(--accent-color); margin-bottom:10px;">Welcome</h2>
-            <p style="opacity:0.6; font-size:0.9rem; margin-bottom:20px;">Choose a name to start chatting</p>
-            <input type="text" id="onboard-name" placeholder="Your Name" style="width:100%; padding:15px; border-radius:15px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:white; outline:none; margin-bottom:20px; text-align:center; font-size:1.1rem;">
-            <button id="finish-onboard-btn" class="action-btn" style="width:100%; background:var(--accent-color); color:#0f172a; padding:15px; border-radius:15px; font-weight:700; border:none; cursor:pointer;" disabled>Enter App</button>
+    <!-- Messages -->
+    <main id="chat-body" class="chat-body"></main>
+
+    <!-- Input -->
+    <footer class="chat-footer">
+        <div class="input-row">
+            <button id="voice-btn" class="footer-icon-btn" title="Hold to record">🎙</button>
+            <div class="input-box">
+                <input id="msg-input" type="text" placeholder="Message..." autocomplete="off">
+            </div>
+            <button id="send-btn" class="send-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
         </div>
-    </div>
+    </footer>
+</div>
 
-    <script src="chat.js"></script>
+<!-- VOICE RECORDING OVERLAY -->
+<div id="voice-overlay" class="voice-overlay">
+    <div class="wave-bars">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div>
+    </div>
+    <span>Release to send</span>
+</div>
+
+<!-- ONBOARDING -->
+<div id="onboarding" class="onboarding">
+    <div class="onboard-card">
+        <div class="onboard-icon">💬</div>
+        <h1>Pro Chat</h1>
+        <p>Decentralized · Encrypted · Fast</p>
+        <input id="name-input" type="text" placeholder="Enter your name" maxlength="20">
+        <button id="start-btn" disabled>Start Chatting</button>
+    </div>
+</div>
+
+<script src="chat.js"></script>
 </body>
 </html>

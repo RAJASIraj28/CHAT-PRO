@@ -1,313 +1,295 @@
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // ==== STATE & CONSTANTS ====
-    let myName = localStorage.getItem('my_chat_name') || '';
-    let mySecretKey = localStorage.getItem('my_chat_key') || Math.random().toString(36).substring(2, 15);
-    localStorage.setItem('my_chat_key', mySecretKey);
 
-    let currentChatType = 'global';
-    let activeFriendId = null;
+    // ======== STATE ========
+    let myName = localStorage.getItem('pro_chat_name') || '';
+    let currentChat = 'global'; // 'global' or 'private'
+    let activePeerId = null;
     let localStream = null;
     let currentCall = null;
-    let typingTimeout = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
 
-    // Use a more robust set of Gun.js relay peers
-    const gun = Gun({
-        peers: ['https://gun-manhattan.herokuapp.com/gun', 'https://gun-us.herokuapp.com/gun']
-    });
-    
-    // SEA Encryption Module (Simplified for logic)
+    // ======== GUN.JS SETUP ========
+    const gun = Gun({ peers: ['https://gun-manhattan.herokuapp.com/gun', 'https://gun-us.herokuapp.com/gun'] });
     const SEA = Gun.SEA;
-    const globalChat = gun.get('pro_chat_global_final_v3');
-    const privateChatRelay = gun.get('pro_chat_private_relay_v3');
+    const globalChat = gun.get('pro_chat_global_v4_final');
+    const privateRelay = gun.get('pro_chat_private_v4_final');
 
+    // ======== PEERJS SETUP ========
     const peer = new Peer(undefined, {
         config: {
-            'iceServers': [
+            iceServers: [
                 { url: 'stun:stun.l.google.com:19302' },
-                { url: 'stun:stun1.l.google.com:19302' }
+                { url: 'stun:stun1.l.google.com:19302' },
+                { url: 'stun:stun2.l.google.com:19302' }
             ]
         }
     });
 
-    // ==== UI ELEMENTS ====
-    const chatBody = document.getElementById('chat-messages');
+    // ======== DOM REFS ========
+    const onboarding = document.getElementById('onboarding');
+    const nameInput = document.getElementById('name-input');
+    const startBtn = document.getElementById('start-btn');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const chatBody = document.getElementById('chat-body');
     const msgInput = document.getElementById('msg-input');
     const sendBtn = document.getElementById('send-btn');
-    const sidebar = document.getElementById('contacts-sidebar');
-    const onboardScreen = document.getElementById('onboarding-screen');
-    const onboardNameInput = document.getElementById('onboard-name');
-    const finishOnboardBtn = document.getElementById('finish-onboard-btn');
+    const voiceBtn = document.getElementById('voice-btn');
+    const voiceOverlay = document.getElementById('voice-overlay');
     const callingUI = document.getElementById('calling-ui');
-    const statusText = document.getElementById('connection-status');
+    const chatTitle = document.getElementById('chat-title');
+    const videoCallBtn = document.getElementById('video-call-btn');
+    const statusText = document.getElementById('status-text');
 
-    // ==== INITIALIZATION ====
-    if (!myName) {
-        onboardScreen.style.display = 'flex';
-    } else {
-        onboardScreen.style.display = 'none';
+    // ======== ONBOARDING ========
+    if (myName) {
+        onboarding.classList.add('hide');
+        setTimeout(() => { onboarding.style.display = 'none'; }, 400);
         initApp();
     }
 
-    onboardNameInput.addEventListener('input', () => {
-        finishOnboardBtn.disabled = onboardNameInput.value.trim().length < 2;
+    nameInput.addEventListener('input', () => {
+        startBtn.disabled = nameInput.value.trim().length < 2;
     });
 
-    finishOnboardBtn.addEventListener('click', () => {
-        myName = onboardNameInput.value.trim();
-        localStorage.setItem('my_chat_name', myName);
-        onboardScreen.style.opacity = '0';
-        setTimeout(() => {
-            onboardScreen.style.display = 'none';
-            initApp();
-        }, 400);
+    startBtn.addEventListener('click', () => {
+        myName = nameInput.value.trim();
+        localStorage.setItem('pro_chat_name', myName);
+        onboarding.classList.add('hide');
+        setTimeout(() => { onboarding.style.display = 'none'; }, 400);
+        initApp();
     });
 
+    // ======== INIT ========
     function initApp() {
         loadGlobalChat();
-        startHeartbeat();
     }
 
-    function startHeartbeat() {
-        setInterval(() => {
-            if (peer && !peer.destroyed) peer.socket.send({ type: 'HEARTBEAT' });
-        }, 15000);
+    // ======== SIDEBAR ========
+    document.getElementById('open-sidebar').addEventListener('click', openSidebar);
+    document.getElementById('close-sidebar').addEventListener('click', closeSidebar);
+    sidebarOverlay.addEventListener('click', closeSidebar);
+    document.getElementById('global-btn').addEventListener('click', () => { switchChat('global'); closeSidebar(); });
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        sidebarOverlay.classList.add('show');
+    }
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('show');
     }
 
-    // ==== SIDEBAR LOGIC ====
-    document.getElementById('open-sidebar').addEventListener('click', () => sidebar.classList.add('open'));
-    document.querySelector('.close-sidebar').addEventListener('click', () => sidebar.classList.remove('open'));
-    document.getElementById('global-community-btn').addEventListener('click', () => switchChat('global'));
-
-    // ==== PEERJS LOGIC ====
-    peer.on('open', (id) => {
+    // ======== PEERJS ========
+    peer.on('open', id => {
         document.getElementById('my-peer-id').textContent = id;
-        statusText.textContent = 'Ready (Encrypted)';
+        statusText.textContent = '● Encrypted';
     });
 
-    peer.on('call', async (call) => {
-        if (confirm(`Incoming video call... Answer?`)) {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localStream = stream;
-            document.getElementById('local-video').srcObject = stream;
-            call.answer(stream);
-            handleCall(call);
+    peer.on('error', err => {
+        console.warn('PeerJS Error:', err);
+        statusText.textContent = '● Reconnecting...';
+    });
+
+    peer.on('call', async call => {
+        if (confirm('Incoming call — Answer?')) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localStream = stream;
+                document.getElementById('local-video').srcObject = stream;
+                call.answer(stream);
+                handleCall(call);
+            } catch (e) { alert('Camera/mic access denied.'); }
+        } else {
+            call.close();
         }
     });
 
     document.getElementById('connect-btn').addEventListener('click', () => {
-        const friendId = document.getElementById('friend-id-input').value.trim();
-        if (friendId) {
-            switchChat('private', friendId);
+        const id = document.getElementById('friend-id-input').value.trim();
+        if (id) {
+            switchChat('private', id);
             document.getElementById('friend-id-input').value = '';
-            sidebar.classList.remove('open');
+            closeSidebar();
         }
     });
 
-    // ==== CALLING LOGIC ====
-    document.getElementById('start-video-call').addEventListener('click', async () => {
-        if (!activeFriendId) return;
+    document.getElementById('copy-id-btn').addEventListener('click', () => {
+        const id = document.getElementById('my-peer-id').textContent;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(id).then(() => alert('ID copied!'));
+        } else {
+            prompt('Copy your ID:', id);
+        }
+    });
+
+    // ======== VIDEO CALLING ========
+    videoCallBtn.addEventListener('click', async () => {
+        if (!activePeerId) return;
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             localStream = stream;
             document.getElementById('local-video').srcObject = stream;
-            const call = peer.call(activeFriendId, stream);
+            const call = peer.call(activePeerId, stream);
             handleCall(call);
-        } catch (err) {
-            alert("Camera access denied.");
-        }
+        } catch (e) { alert('Camera/mic access denied.'); }
     });
 
     function handleCall(call) {
         currentCall = call;
         callingUI.classList.add('active');
-        call.on('stream', (remoteStream) => {
-            document.getElementById('remote-video').srcObject = remoteStream;
-        });
+        call.on('stream', stream => { document.getElementById('remote-video').srcObject = stream; });
         call.on('close', endCall);
+        call.on('error', endCall);
     }
 
     function endCall() {
-        if (currentCall) currentCall.close();
-        if (localStream) localStream.getTracks().forEach(t => t.stop());
+        if (currentCall) { currentCall.close(); currentCall = null; }
+        if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
         callingUI.classList.remove('active');
-        currentCall = null;
     }
+
     document.getElementById('end-call-btn').addEventListener('click', endCall);
 
-    // ==== CHAT ENGINE (ENCRYPTED) ====
+    // ======== VOICE MESSAGING ========
+    voiceBtn.addEventListener('mousedown', startRecording);
+    voiceBtn.addEventListener('touchstart', e => { e.preventDefault(); startRecording(); }, { passive: false });
+    window.addEventListener('mouseup', stopRecording);
+    window.addEventListener('touchend', stopRecording);
+
+    async function startRecording() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = sendVoiceMessage;
+            mediaRecorder.start();
+            voiceOverlay.classList.add('active');
+        } catch (e) { alert('Mic access denied.'); }
+    }
+
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            voiceOverlay.classList.remove('active');
+        }
+    }
+
+    function sendVoiceMessage() {
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+            const b64 = reader.result;
+            if (currentChat === 'global') {
+                globalChat.set({ sender: myName, audio: b64, time: Date.now() });
+            } else if (activePeerId) {
+                const roomId = getRoomId();
+                privateRelay.get(roomId).set({ sender: myName, audio: b64, time: Date.now() });
+            }
+        };
+    }
+
+    // ======== CHAT LOGIC ========
+    let globalListener = null;
+
     function loadGlobalChat() {
+        currentChat = 'global';
+        activePeerId = null;
         chatBody.innerHTML = '';
-        document.getElementById('chat-title').textContent = 'Global Community';
-        document.getElementById('start-video-call').style.display = 'none';
-        
+        chatTitle.textContent = 'Global Community';
+        videoCallBtn.classList.add('hidden');
+        statusText.textContent = '● Online';
+
         globalChat.map().on((data, id) => {
-            if (data && data.text) {
-                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id);
+            if (data && (data.text || data.audio)) {
+                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id, data.audio);
             }
         });
     }
 
     async function loadPrivateChat(friendId) {
+        currentChat = 'private';
+        activePeerId = friendId;
         chatBody.innerHTML = '';
-        activeFriendId = friendId;
-        document.getElementById('chat-title').textContent = `Secure Chat: ${friendId.substring(0,6)}`;
-        document.getElementById('start-video-call').style.display = 'flex';
+        chatTitle.textContent = `🔒 ${friendId.substring(0, 8)}...`;
+        videoCallBtn.classList.remove('hidden');
+        statusText.textContent = '● Encrypted';
 
-        const roomId = [peer.id, friendId].sort().join('_');
-        const sharedKey = roomId; // In a production app, this would be a derived secret
+        const roomId = getRoomId();
+        const key = roomId;
 
-        privateChatRelay.get(roomId).map().on(async (encryptedData, id) => {
-            if (encryptedData && encryptedData.text) {
-                // Decrypting on the fly
-                const decryptedText = await SEA.decrypt(encryptedData.text, sharedKey);
-                if (decryptedText) {
-                    appendMessage(encryptedData.sender, decryptedText, encryptedData.sender === myName ? 'sent' : 'received', id);
+        privateRelay.get(roomId).map().on(async (data, id) => {
+            if (data && (data.text || data.audio)) {
+                let text = data.text;
+                if (text) {
+                    try { text = await SEA.decrypt(text, key); } catch (e) {}
                 }
+                appendMessage(data.sender, text, data.sender === myName ? 'sent' : 'received', id, data.audio);
             }
         });
     }
 
     function switchChat(type, friendId = null) {
-        currentChatType = type;
         if (type === 'global') loadGlobalChat();
         else if (friendId) loadPrivateChat(friendId);
-        sidebar.classList.remove('open');
     }
 
     async function sendMessage() {
         const text = msgInput.value.trim();
         if (!text) return;
-
-        if (currentChatType === 'global') {
-            globalChat.set({ sender: myName, text: text, time: Date.now() });
-        } else if (activeFriendId) {
-            const roomId = [peer.id, activeFriendId].sort().join('_');
-            const sharedKey = roomId;
-            const encryptedText = await SEA.encrypt(text, sharedKey);
-            privateChatRelay.get(roomId).set({ sender: myName, text: encryptedText, time: Date.now() });
-        }
-
         msgInput.value = '';
-    }
 
-    // TYPING INDICATOR
-    msgInput.addEventListener('input', () => {
-        if (currentChatType === 'private' && activeFriendId) {
-            // Signal typing (can be added to Gun.js stream)
-        }
-    });
-
-    // VOICE MESSAGING
-    let mediaRecorder;
-    let audioChunks = [];
-    const voiceBtn = document.getElementById('voice-btn');
-    const voiceOverlay = document.getElementById('voice-overlay');
-
-    voiceBtn.addEventListener('mousedown', startRecording);
-    voiceBtn.addEventListener('touchstart', startRecording);
-    voiceBtn.addEventListener('mouseup', stopRecording);
-    voiceBtn.addEventListener('touchend', stopRecording);
-
-    async function startRecording(e) {
-        e.preventDefault();
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.onstop = sendVoiceMessage;
-            mediaRecorder.start();
-            voiceOverlay.style.display = 'flex';
-        } catch (err) { alert("Mic denied"); }
-    }
-
-    function stopRecording() {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            voiceOverlay.style.display = 'none';
+        if (currentChat === 'global') {
+            globalChat.set({ sender: myName, text, time: Date.now() });
+        } else if (activePeerId) {
+            const key = getRoomId();
+            const enc = await SEA.encrypt(text, key);
+            privateRelay.get(getRoomId()).set({ sender: myName, text: enc, time: Date.now() });
         }
     }
 
-    async function sendVoiceMessage() {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-            const base64Audio = reader.result;
-            if (currentChatType === 'global') {
-                globalChat.set({ sender: myName, audio: base64Audio, time: Date.now() });
-            } else if (activeFriendId) {
-                const roomId = [peer.id, activeFriendId].sort().join('_');
-                privateChatRelay.get(roomId).set({ sender: myName, audio: base64Audio, time: Date.now() });
-            }
-        };
+    sendBtn.addEventListener('click', sendMessage);
+    msgInput.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+
+    // ======== HELPERS ========
+    function getRoomId() {
+        return [peer.id, activePeerId].sort().join('__');
     }
 
-    // UPDATED APPEND MESSAGE TO HANDLE AUDIO
+    const rendered = new Set();
     function appendMessage(sender, text, type, id, audio = null) {
-        if (document.getElementById(`msg-${id}`)) return;
+        if (!id || rendered.has(id)) return;
+        rendered.add(id);
+
         const row = document.createElement('div');
         row.className = `msg-row ${type}`;
-        row.id = `msg-${id}`;
+        row.id = `m-${id}`;
+
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        const senderSpan = document.createElement('p');
-        senderSpan.style.fontSize = '0.7rem'; senderSpan.style.opacity = '0.6'; senderSpan.style.marginBottom = '4px';
-        senderSpan.textContent = sender;
-        
+
+        const nameEl = document.createElement('p');
+        nameEl.className = 'sender-name';
+        nameEl.textContent = sender;
+        bubble.appendChild(nameEl);
+
         if (audio) {
             const player = document.createElement('audio');
             player.src = audio;
             player.controls = true;
-            player.style.width = '200px';
-            player.style.height = '35px';
-            bubble.appendChild(senderSpan); bubble.appendChild(player);
-        } else {
-            const textP = document.createElement('p');
-            textP.textContent = text;
-            bubble.appendChild(senderSpan); bubble.appendChild(textP);
+            bubble.appendChild(player);
+        } else if (text) {
+            const textEl = document.createElement('p');
+            textEl.className = 'msg-text';
+            textEl.textContent = text;
+            bubble.appendChild(textEl);
         }
-        
+
         row.appendChild(bubble);
         chatBody.appendChild(row);
         chatBody.scrollTop = chatBody.scrollHeight;
     }
-
-    // UPDATE MAP LISTENERS TO PASS AUDIO
-    globalChat.map().on((data, id) => {
-        if (data && (data.text || data.audio)) {
-            appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id, data.audio);
-        }
-    });
-
-    sendBtn.addEventListener('click', sendMessage);
-    msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-
-    async function loadPrivateChat(friendId) {
-        chatBody.innerHTML = '';
-        activeFriendId = friendId;
-        document.getElementById('chat-title').textContent = `Secure Chat: ${friendId.substring(0,6)}`;
-        document.getElementById('header-avatar').textContent = '👤';
-        document.getElementById('start-video-call').style.display = 'flex';
-
-        const roomId = [peer.id, friendId].sort().join('_');
-        const sharedKey = roomId;
-
-        privateChatRelay.get(roomId).map().on(async (encryptedData, id) => {
-            if (encryptedData && (encryptedData.text || encryptedData.audio)) {
-                let decryptedText = encryptedData.text;
-                if (encryptedData.text) {
-                    decryptedText = await SEA.decrypt(encryptedData.text, sharedKey);
-                }
-                appendMessage(encryptedData.sender, decryptedText, encryptedData.sender === myName ? 'sent' : 'received', id, encryptedData.audio);
-            }
-        });
-    }
-
-    document.getElementById('copy-id-btn').addEventListener('click', () => {
-        const id = document.getElementById('my-peer-id').textContent;
-        navigator.clipboard.writeText(id).then(() => alert("Private ID Copied!"));
-    });
-
 });
