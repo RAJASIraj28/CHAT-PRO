@@ -35,11 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     nameInput.addEventListener('input', () => {
-        if(nameInput.value.trim().length > 0) {
-            finishBtn.disabled = false;
-        } else {
-            finishBtn.disabled = true;
-        }
+        finishBtn.disabled = nameInput.value.trim().length === 0;
     });
 
     notifyBtn.addEventListener('click', () => {
@@ -60,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            stream.getTracks().forEach(track => track.stop()); // Immediately stop
+            stream.getTracks().forEach(track => track.stop());
             mediaBtn.textContent = 'Granted ✅';
             mediaBtn.classList.add('btn-granted');
         } catch (e) {
@@ -75,18 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
         onboardScreen.classList.add('hidden');
     });
 
-    // Helper for notifications
-    function notifyUser(title, body) {
-        if (Notification.permission === 'granted' && document.hidden) {
-            new Notification(title, { body });
-        }
-    }
-
-    let activeMode = 'community';
+    // ==== GLOBAL CHAT (GUN.JS) ====
     const gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
-    const communityRoom = gun.get('ultimate-chat-global-room-v2');
+    const communityRoom = gun.get('ultimate-chat-global-room-v3'); // Version bump for clean slate
     let communityMessagesRendered = new Set();
-    
+    let activeMode = 'community';
+    let activeFriendId = null;
+
     function loadCommunity() {
         activeMode = 'community';
         activeFriendId = null;
@@ -97,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('header-avatar').style.background = '#8b5cf6';
         document.getElementById('video-call-btn').style.display = 'none';
         messagesContainer.innerHTML = '';
-        addSystemMessage("Welcome to the Global Community! Messages here are public. Swipe right on any message to reply.");
+        addSystemMessage("Welcome to the Global Community! Messages here are public.");
         communityMessagesRendered.clear();
         
         communityRoom.map().once((data, id) => {
@@ -109,18 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('global-community-btn').addEventListener('click', () => {
-        document.getElementById('contacts-sidebar').classList.remove('open');
-        document.querySelectorAll('.contact-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('global-community-btn').classList.add('active');
-        loadCommunity();
-    });
-
+    // ==== PRIVATE CHAT (PEERJS) ====
     const peer = new Peer();
     let activeConnection = null;
-    let activeFriendId = null;
     let myPeerId = '';
-    
     let contacts = JSON.parse(localStorage.getItem('p2p_contacts')) || {};
     let chatHistory = JSON.parse(localStorage.getItem('p2p_history')) || {};
     
@@ -134,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
     peer.on('connection', (conn) => {
         if(!contacts[conn.peer]) saveContact(conn.peer, 'New Contact');
         setupConnection(conn);
-        notifyUser('New Connection', `${contacts[conn.peer] || conn.peer} connected securely.`);
     });
 
     document.getElementById('connect-btn').addEventListener('click', () => {
@@ -182,23 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function loadHistory(friendId) {
-        messagesContainer.innerHTML = '';
-        addSystemMessage("Secure End-to-End Encrypted Chat");
-        const history = chatHistory[friendId] || [];
-        history.forEach(msg => {
-            renderMessageToDOM(msg.content, msg.type, msg.id, msg.time, msg.quoted, msg.expiresAt, false);
-        });
-    }
-
-    function saveMessage(friendId, msgObj) {
-        if(!chatHistory[friendId]) chatHistory[friendId] = [];
-        if(!msgObj.expiresAt) {
-            chatHistory[friendId].push(msgObj);
-            localStorage.setItem('p2p_history', JSON.stringify(chatHistory));
-        }
-    }
-
     function setupConnection(conn) {
         activeConnection = conn;
         activeFriendId = conn.peer;
@@ -206,7 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         conn.on('open', () => {
             document.getElementById('connection-status').textContent = 'Securely Connected';
-            document.getElementById('connection-status').classList.add('online');
             document.getElementById('chat-title').textContent = contacts[conn.peer] || conn.peer;
             document.getElementById('header-avatar').innerHTML = (contacts[conn.peer] || '?').charAt(0).toUpperCase();
             document.getElementById('header-avatar').style.background = '#10b981';
@@ -218,103 +182,113 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.type === 'message') {
                 renderMessageToDOM(data.content, 'received', data.id, data.time, data.quoted, data.expiresAt, true);
                 saveMessage(activeFriendId, { id: data.id, type: 'received', content: data.content, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
-                notifyUser(contacts[conn.peer], 'Sent a message');
-            } else if (data.type === 'typing') {
-                handleRemoteTyping(data.isTyping);
-            } else if (data.type === 'read_receipt') {
-                const ticks = document.getElementById(`ticks-${data.id}`);
-                if(ticks) { ticks.innerHTML = '✓✓'; ticks.classList.add('read'); }
             }
         });
     }
 
-    // Video Calling
-    const videoBtn = document.getElementById('video-call-btn');
-    const videoModal = document.getElementById('video-modal');
-    const localVideo = document.getElementById('local-video');
-    const remoteVideo = document.getElementById('remote-video');
-    const endCallBtn = document.getElementById('end-call-btn');
-    let currentCall = null;
-    let localStream = null;
+    function loadHistory(friendId) {
+        messagesContainer.innerHTML = '';
+        addSystemMessage("Secure End-to-End Encrypted Chat");
+        const history = chatHistory[friendId] || [];
+        history.forEach(msg => renderMessageToDOM(msg.content, msg.type, msg.id, msg.time, msg.quoted, msg.expiresAt, false));
+    }
 
-    videoBtn.addEventListener('click', async () => {
-        if(!activeFriendId) return;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return alert("Camera access requires HTTPS.");
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localVideo.srcObject = localStream;
-            videoModal.classList.remove('hidden');
-            const call = peer.call(activeFriendId, localStream);
-            currentCall = call;
-            call.on('stream', (remoteStream) => { remoteVideo.srcObject = remoteStream; });
-            call.on('close', endCall);
-        } catch(e) { alert("Camera access denied."); }
+    function saveMessage(friendId, msgObj) {
+        if(!chatHistory[friendId]) chatHistory[friendId] = [];
+        if(!msgObj.expiresAt) {
+            chatHistory[friendId].push(msgObj);
+            localStorage.setItem('p2p_history', JSON.stringify(chatHistory));
+        }
+    }
+
+    // ==== DESIGN STUDIO (THEMING) ====
+    const themeColors = [
+        '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#ef4444', '#f97316',
+        '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6',
+        '#06b6d4', '#0ea5e9', '#3b82f6', '#2563eb', '#1d4ed8', '#1e40af',
+        '#7c3aed', '#c026d3', '#db2777', '#dc2626', '#ea580c', '#ca8a04',
+        '#65a30d', '#16a34a', '#0d9488', '#0891b2', '#0284c7', '#2563eb'
+    ];
+
+    const paletteGrid = document.getElementById('theme-palette');
+    const savedSettings = JSON.parse(localStorage.getItem('chat_advanced_settings')) || {};
+
+    themeColors.forEach(color => {
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch';
+        swatch.style.backgroundColor = color;
+        if(savedSettings.sentColor === color) swatch.classList.add('active');
+        swatch.addEventListener('click', () => {
+            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+            swatch.classList.add('active');
+            document.getElementById('color-sent').value = color;
+            document.documentElement.style.setProperty('--sent-bg', color);
+            savedSettings.sentColor = color;
+        });
+        paletteGrid.appendChild(swatch);
     });
 
-    peer.on('call', async (call) => {
-        const accept = confirm(`Incoming video call. Accept?`);
-        if(accept) {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return alert("Camera access requires HTTPS.");
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localVideo.srcObject = localStream;
-            videoModal.classList.remove('hidden');
-            call.answer(localStream);
-            currentCall = call;
-            call.on('stream', (remoteStream) => { remoteVideo.srcObject = remoteStream; });
-            call.on('close', endCall);
+    function applySettings() {
+        if(savedSettings.font) document.documentElement.style.setProperty('--app-font', savedSettings.font);
+        if(savedSettings.fontSize) document.documentElement.style.setProperty('--app-font-size', savedSettings.fontSize + 'px');
+        if(savedSettings.bubbleRadius) document.documentElement.style.setProperty('--bubble-radius', savedSettings.bubbleRadius + 'px');
+        if(savedSettings.glassBlur) document.documentElement.style.setProperty('--glass-blur', savedSettings.glassBlur + 'px');
+        if(savedSettings.headerColor) document.documentElement.style.setProperty('--header-bg', savedSettings.headerColor);
+        if(savedSettings.sentColor) document.documentElement.style.setProperty('--sent-bg', savedSettings.sentColor);
+        if(savedSettings.receivedColor) document.documentElement.style.setProperty('--received-bg', savedSettings.receivedColor);
+        if(savedSettings.textColor) document.documentElement.style.setProperty('--text-color', savedSettings.textColor);
+        if(savedSettings.bgImage) document.documentElement.style.setProperty('--bg-image', savedSettings.bgImage);
+    }
+    applySettings();
+
+    document.getElementById('save-settings-btn').addEventListener('click', () => {
+        savedSettings.font = document.getElementById('font-select').value;
+        savedSettings.fontSize = document.getElementById('font-size').value;
+        savedSettings.bubbleRadius = document.getElementById('bubble-radius').value;
+        savedSettings.glassBlur = document.getElementById('glass-blur').value;
+        savedSettings.headerColor = document.getElementById('color-header').value;
+        savedSettings.sentColor = document.getElementById('color-sent').value;
+        savedSettings.receivedColor = document.getElementById('color-received').value;
+        savedSettings.textColor = document.getElementById('color-text').value;
+        localStorage.setItem('chat_advanced_settings', JSON.stringify(savedSettings));
+        applySettings();
+        document.getElementById('settings-modal').classList.remove('show');
+    });
+
+    document.getElementById('reset-settings-btn').addEventListener('click', () => {
+        localStorage.removeItem('chat_advanced_settings');
+        location.reload();
+    });
+
+    // Background Image
+    document.getElementById('modal-bg-btn').addEventListener('click', () => document.getElementById('bg-input').click());
+    document.getElementById('bg-input').addEventListener('change', (e) => {
+        if (e.target.files[0]) {
+            const r = new FileReader();
+            r.onload = ev => {
+                savedSettings.bgImage = `url(${ev.target.result})`;
+                document.documentElement.style.setProperty('--bg-image', savedSettings.bgImage);
+            };
+            r.readAsDataURL(e.target.files[0]);
         }
     });
 
-    endCallBtn.addEventListener('click', endCall);
-    function endCall() {
-        if(currentCall) currentCall.close();
-        if(localStream) localStream.getTracks().forEach(t => t.stop());
-        videoModal.classList.add('hidden');
-    }
-
-    // Swipe to Reply
-    let replyingToContext = null;
-    const replyPreview = document.getElementById('reply-preview');
-    const replyTextPreview = document.getElementById('reply-text-preview');
-    
-    document.getElementById('cancel-reply-btn').addEventListener('click', cancelReply);
-    function cancelReply() { replyingToContext = null; replyPreview.classList.add('hidden'); }
-
-    function attachSwipeListener(wrapper, msgDiv, text) {
-        let startX = 0, currentX = 0, isDragging = false;
-        msgDiv.addEventListener('touchstart', e => { startX = e.touches[0].clientX; isDragging = true; wrapper.style.transition = 'none'; }, {passive: true});
-        msgDiv.addEventListener('touchmove', e => {
-            if(!isDragging) return;
-            currentX = e.touches[0].clientX;
-            const diff = currentX - startX;
-            if(diff > 0 && diff < 80) {
-                wrapper.style.transform = `translateX(${diff}px)`;
-                wrapper.querySelector('.reply-icon-reveal').style.opacity = diff / 80;
-            }
-        }, {passive: true});
-        msgDiv.addEventListener('touchend', e => {
-            if(!isDragging) return;
-            isDragging = false;
-            wrapper.style.transition = 'transform 0.2s ease-out';
-            wrapper.style.transform = `translateX(0)`;
-            wrapper.querySelector('.reply-icon-reveal').style.opacity = 0;
-            if (currentX - startX > 50) triggerReply(text);
-        });
-        msgDiv.addEventListener('dblclick', () => triggerReply(text));
-    }
-
-    function triggerReply(text) {
-        replyingToContext = text.substring(0, 50) + (text.length>50?'...':'');
-        replyTextPreview.textContent = replyingToContext;
-        replyPreview.classList.remove('hidden');
-        msgInput.focus();
-    }
-
-    // Chat Rendering
+    // UI Listeners
     const messagesContainer = document.getElementById('chat-messages');
     const msgInput = document.getElementById('msg-input');
     const sendBtn = document.getElementById('send-btn');
-    
+    const modal = document.getElementById('settings-modal');
+
+    document.getElementById('settings-btn').addEventListener('click', () => modal.classList.add('show'));
+    document.querySelector('.modal .close-btn').addEventListener('click', () => modal.classList.remove('show'));
+    document.getElementById('open-sidebar').addEventListener('click', () => document.getElementById('contacts-sidebar').classList.add('open'));
+    document.querySelector('.close-sidebar').addEventListener('click', () => document.getElementById('contacts-sidebar').classList.remove('open'));
+    document.getElementById('global-community-btn').addEventListener('click', () => {
+        document.getElementById('contacts-sidebar').classList.remove('open');
+        loadCommunity();
+    });
+
+    // Sending Logic
     function formatTime() {
         const now = new Date();
         return now.getHours() + ':' + (now.getMinutes() < 10 ? '0'+now.getMinutes() : now.getMinutes());
@@ -331,11 +305,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.createElement('div');
         wrapper.className = `message-wrapper ${type}-wrap`;
         
-        const replyIcon = document.createElement('div');
-        replyIcon.className = 'reply-icon-reveal';
-        replyIcon.textContent = '↩️';
-        wrapper.appendChild(replyIcon);
-
         const msgDiv = document.createElement('div');
         msgDiv.classList.add('message', type);
         msgDiv.id = `msg-${id}`;
@@ -347,16 +316,6 @@ document.addEventListener('DOMContentLoaded', () => {
             msgDiv.appendChild(nameDiv);
         }
 
-        if(expiresAt) {
-            const timeLeft = Math.max(0, expiresAt - Date.now());
-            if(timeLeft === 0 && !isNew) return; 
-            const notice = document.createElement('span');
-            notice.className = 'disappear-notice';
-            notice.textContent = `⏱️ Disappears soon...`;
-            msgDiv.appendChild(notice);
-            setTimeout(() => { msgDiv.style.opacity = '0'; setTimeout(() => wrapper.remove(), 300); }, isNew ? (expiresAt - Date.now()) : timeLeft);
-        }
-
         if (quotedText) {
             const quoteDiv = document.createElement('div');
             quoteDiv.className = 'quoted-msg';
@@ -364,12 +323,10 @@ document.addEventListener('DOMContentLoaded', () => {
             msgDiv.appendChild(quoteDiv);
         }
         
-        let replyableText = "Media";
         if (content.text) {
             const textSpan = document.createElement('span');
             textSpan.textContent = content.text;
             msgDiv.appendChild(textSpan);
-            replyableText = content.text;
         }
         if (content.image) {
             const img = document.createElement('img');
@@ -382,16 +339,12 @@ document.addEventListener('DOMContentLoaded', () => {
             audio.src = content.audio;
             msgDiv.appendChild(audio);
         }
-        
-        attachSwipeListener(wrapper, msgDiv, replyableText);
 
         const metaDiv = document.createElement('div');
         metaDiv.classList.add('msg-meta');
         metaDiv.innerHTML = `<span class="msg-time">${timeStr}</span>`;
         if (type === 'sent' && activeMode === 'private') {
             metaDiv.innerHTML += `<span class="ticks" id="ticks-${id}">✓✓</span>`;
-        } else if(isNew && activeConnection && activeMode === 'private') {
-            activeConnection.send({ type: 'read_receipt', id: id });
         }
         
         msgDiv.appendChild(metaDiv);
@@ -401,128 +354,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSendClick() {
-        if (sendBtn.classList.contains('mic-mode')) return;
-        if (activeMode === 'private' && !activeConnection) return alert('Connect to a friend first!');
-        
         const text = msgInput.value.trim();
         if (text) {
             const time = formatTime();
             const tempId = Date.now().toString();
-            const disappearVal = parseInt(document.getElementById('disappear-select').value);
-            const expiresAt = disappearVal > 0 ? Date.now() + disappearVal : null;
             const msgObj = { text: text };
             
-            if (activeMode === 'private') {
-                renderMessageToDOM(msgObj, 'sent', tempId, time, replyingToContext, expiresAt, true);
-                saveMessage(activeFriendId, { id: tempId, type: 'sent', content: msgObj, time: time, quoted: replyingToContext, expiresAt });
-                activeConnection.send({ type: 'message', content: msgObj, id: tempId, time: time, quoted: replyingToContext, expiresAt: expiresAt });
-            } else {
-                renderMessageToDOM(msgObj, 'sent', tempId, time, replyingToContext, null, true);
-                communityRoom.get(tempId).put({ content: JSON.stringify(msgObj), timeStr: time, quoted: replyingToContext, sender: myPeerId, senderName: myName || 'Anonymous' });
+            if (activeMode === 'private' && activeConnection) {
+                renderMessageToDOM(msgObj, 'sent', tempId, time, null, null, true);
+                saveMessage(activeFriendId, { id: tempId, type: 'sent', content: msgObj, time: time });
+                activeConnection.send({ type: 'message', content: msgObj, id: tempId, time: time });
+            } else if(activeMode === 'community') {
+                renderMessageToDOM(msgObj, 'sent', tempId, time, null, null, true);
+                communityRoom.get(tempId).put({ content: JSON.stringify(msgObj), timeStr: time, sender: myPeerId, senderName: myName || 'Anonymous' });
             }
-            
             msgInput.value = '';
             msgInput.dispatchEvent(new Event('input'));
-            cancelReply();
         }
     }
 
     sendBtn.addEventListener('click', handleSendClick);
     msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSendClick(); });
 
-    const micIcon = document.getElementById('mic-icon'), sendIcon = document.getElementById('send-icon');
+    // Voice Notes (Mic Icon Logic)
     msgInput.addEventListener('input', () => {
-        if (msgInput.value.trim().length > 0) { sendBtn.classList.remove('mic-mode'); micIcon.style.display = 'none'; sendIcon.style.display = 'block'; } 
-        else { sendBtn.classList.add('mic-mode'); micIcon.style.display = 'block'; sendIcon.style.display = 'none'; }
-    });
-
-    // Voice Notes
-    let mediaRecorder, audioChunks = [], isRecording = false;
-    sendBtn.addEventListener('mousedown', startRecording);
-    sendBtn.addEventListener('touchstart', startRecording);
-    sendBtn.addEventListener('mouseup', stopRecording);
-    sendBtn.addEventListener('touchend', stopRecording);
-    
-    async function startRecording(e) {
-        if (!sendBtn.classList.contains('mic-mode')) return;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return alert("Microphone access requires HTTPS.");
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            mediaRecorder.ondataavailable = ev => audioChunks.push(ev.data);
-            mediaRecorder.onstop = () => {
-                const reader = new FileReader();
-                reader.readAsDataURL(new Blob(audioChunks, { type: 'audio/webm' }));
-                reader.onloadend = () => {
-                    const time = formatTime(), tempId = Date.now().toString();
-                    renderMessageToDOM({ audio: reader.result }, 'sent', tempId, time, replyingToContext, null, true);
-                    if(activeMode === 'private') {
-                        saveMessage(activeFriendId, { id: tempId, type: 'sent', content: { audio: reader.result }, time, quoted: replyingToContext, expiresAt: null });
-                        activeConnection.send({ type: 'message', content: { audio: reader.result }, id: tempId, time, quoted: replyingToContext, expiresAt: null });
-                    } else {
-                        communityRoom.get(tempId).put({ content: JSON.stringify({ audio: reader.result }), timeStr: time, quoted: replyingToContext, sender: myPeerId, senderName: myName || 'Anonymous' });
-                    }
-                    cancelReply();
-                };
-            };
-            mediaRecorder.start();
-            isRecording = true;
-            sendBtn.classList.add('recording');
-        } catch (err) {}
-    }
-    function stopRecording() { if (isRecording) { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); isRecording = false; sendBtn.classList.remove('recording'); } }
-
-    // Advanced Settings
-    const savedSettings = JSON.parse(localStorage.getItem('chat_advanced_settings')) || {};
-    function applySavedSettings() {
-        if(savedSettings.font) document.documentElement.style.setProperty('--app-font', savedSettings.font);
-        if(savedSettings.fontSize) document.documentElement.style.setProperty('--app-font-size', savedSettings.fontSize + 'px');
-        if(savedSettings.bubbleRadius) document.documentElement.style.setProperty('--bubble-radius', savedSettings.bubbleRadius + 'px');
-        if(savedSettings.glassBlur) document.documentElement.style.setProperty('--glass-blur', savedSettings.glassBlur + 'px');
-        if(savedSettings.headerColor) document.documentElement.style.setProperty('--header-bg', savedSettings.headerColor);
-        if(savedSettings.sentColor) document.documentElement.style.setProperty('--sent-bg', savedSettings.sentColor);
-        if(savedSettings.receivedColor) document.documentElement.style.setProperty('--received-bg', savedSettings.receivedColor);
-        if(savedSettings.textColor) document.documentElement.style.setProperty('--text-color', savedSettings.textColor);
-        if(savedSettings.bgImage) document.documentElement.style.setProperty('--bg-image', savedSettings.bgImage);
-    }
-    applySavedSettings();
-
-    document.getElementById('open-sidebar').addEventListener('click', () => document.getElementById('contacts-sidebar').classList.add('open'));
-    document.querySelector('.close-sidebar').addEventListener('click', () => document.getElementById('contacts-sidebar').classList.remove('open'));
-    
-    const modal = document.getElementById('settings-modal');
-    document.getElementById('settings-btn').addEventListener('click', () => modal.classList.add('show'));
-    document.querySelector('.modal .close-btn').addEventListener('click', () => modal.classList.remove('show'));
-    
-    document.getElementById('save-settings-btn').addEventListener('click', () => {
-        savedSettings.font = document.getElementById('font-select').value;
-        savedSettings.fontSize = document.getElementById('font-size').value;
-        savedSettings.bubbleRadius = document.getElementById('bubble-radius').value;
-        savedSettings.glassBlur = document.getElementById('glass-blur').value;
-        savedSettings.headerColor = document.getElementById('color-header').value;
-        savedSettings.sentColor = document.getElementById('color-sent').value;
-        savedSettings.receivedColor = document.getElementById('color-received').value;
-        savedSettings.textColor = document.getElementById('color-text').value;
-        localStorage.setItem('chat_advanced_settings', JSON.stringify(savedSettings));
-        applySavedSettings();
-        modal.classList.remove('show');
-    });
-
-    document.getElementById('reset-settings-btn').addEventListener('click', () => {
-        localStorage.removeItem('chat_advanced_settings');
-        location.reload();
-    });
-
-    document.getElementById('modal-bg-btn').addEventListener('click', () => document.getElementById('bg-input').click());
-    document.getElementById('bg-input').addEventListener('change', (e) => {
-        if (e.target.files[0]) {
-            const r = new FileReader();
-            r.onload = ev => {
-                savedSettings.bgImage = `url(${ev.target.result})`;
-                document.documentElement.style.setProperty('--bg-image', savedSettings.bgImage);
-            };
-            r.readAsDataURL(e.target.files[0]);
-        }
+        const mic = document.getElementById('mic-icon'), send = document.getElementById('send-icon');
+        if (msgInput.value.trim().length > 0) { sendBtn.classList.remove('mic-mode'); mic.style.display = 'none'; send.style.display = 'block'; } 
+        else { sendBtn.classList.add('mic-mode'); mic.style.display = 'block'; send.style.display = 'none'; }
     });
 });

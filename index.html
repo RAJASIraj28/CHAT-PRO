@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Ultimate Chat</title>
+    <title>Pro Chat Global</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e293b">
@@ -12,7 +12,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <link rel="stylesheet" href="chat.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@400;500&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Expanded Font Library -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Roboto:wght@400;500&family=Poppins:wght@400;600&family=Open+Sans:wght@400;600&family=Montserrat:wght@400;700&family=Playfair+Display:ital,wght@0,700;1,700&family=Lora:wght@400;700&family=Oswald:wght@400;700&family=Ubuntu:wght@400;700&family=Courier+Prime&family=Dancing+Script:wght@700&family=Pacifico&family=Orbitron:wght@400;700&family=Fira+Code&family=Quicksand:wght@500&display=swap" rel="stylesheet">
+    
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
 </head>
@@ -113,7 +115,7 @@
         </header>
         
         <main class="chat-main" id="chat-messages">
-            <div class="system-msg">Welcome to the Global Community! Messages here are public. Swipe right on a message to reply.</div>
+            <div class="system-msg">Welcome to the Global Community! Swipe right on a message to reply.</div>
         </main>
         
         <div id="typing-indicator" class="typing-indicator hidden">
@@ -148,60 +150,73 @@
         </div>
     </div>
 
-    <!-- Advanced Settings Modal -->
+    <!-- Ultra Customization Modal -->
     <div id="settings-modal" class="modal">
         <div class="modal-content advanced-settings">
             <div class="modal-header">
-                <h3>Visual Editor & Settings</h3>
+                <h3>Design Studio</h3>
                 <span class="close-btn">&times;</span>
             </div>
-            <div class="modal-body" style="overflow-y: auto; max-height: 60vh; padding-right: 10px;">
-                <h4 class="settings-section-title">Functionality</h4>
+            <div class="modal-body ultra-custom" style="overflow-y: auto; max-height: 70vh; padding-right: 10px;">
+                
+                <h4 class="settings-section-title">✨ Typography Styles</h4>
                 <div class="setting-group">
-                    <label>Privacy (Disappear Msg)</label>
-                    <select id="disappear-select">
-                        <option value="0">Off (Keep Forever)</option>
-                        <option value="10000">10 Seconds</option>
-                        <option value="60000">1 Minute</option>
+                    <label>Choose Font</label>
+                    <select id="font-select">
+                        <option value="'Inter', sans-serif">Modern (Inter)</option>
+                        <option value="'Roboto', sans-serif">Standard (Roboto)</option>
+                        <option value="'Poppins', sans-serif">Elegant (Poppins)</option>
+                        <option value="'Montserrat', sans-serif">Bold (Montserrat)</option>
+                        <option value="'Open Sans', sans-serif">Clean (Open Sans)</option>
+                        <option value="'Playfair Display', serif">Luxury (Playfair)</option>
+                        <option value="'Lora', serif">Classic (Lora)</option>
+                        <option value="'Ubuntu', sans-serif">Digital (Ubuntu)</option>
+                        <option value="'Oswald', sans-serif">Condensed (Oswald)</option>
+                        <option value="'Courier Prime', monospace">Typewriter (Courier)</option>
+                        <option value="'Fira Code', monospace">Developer (Fira Code)</option>
+                        <option value="'Dancing Script', cursive">Handwritten (Dancing)</option>
+                        <option value="'Pacifico', cursive">Retro (Pacifico)</option>
+                        <option value="'Orbitron', sans-serif">Futuristic (Orbitron)</option>
+                        <option value="'Quicksand', sans-serif">Friendly (Quicksand)</option>
                     </select>
                 </div>
                 
-                <h4 class="settings-section-title">Typography & Layout</h4>
-                <div class="setting-group">
-                    <label>Font Style</label>
-                    <select id="font-select">
-                        <option value="'Inter', sans-serif">Modern</option>
-                        <option value="'Roboto', sans-serif">Classic</option>
-                        <option value="'Poppins', sans-serif">Playful</option>
-                    </select>
+                <h4 class="settings-section-title">🎨 Theme Palette (30+ Shades)</h4>
+                <p class="step-desc">Tap a shade to instantly theme your chat window.</p>
+                <div class="color-palette-grid" id="theme-palette">
+                    <!-- 30+ colors injected here -->
                 </div>
+
+                <h4 class="settings-section-title">⚙️ Detailed Controls</h4>
                 <div class="setting-group slider-group">
                     <label>Font Size</label>
-                    <input type="range" id="font-size" min="12" max="22" value="15">
+                    <input type="range" id="font-size" min="12" max="24" value="15">
                 </div>
                 <div class="setting-group slider-group">
                     <label>Bubble Roundness</label>
-                    <input type="range" id="bubble-radius" min="0" max="25" value="12">
-                </div>
-                
-                <h4 class="settings-section-title">Colors & Aesthetics</h4>
-                <div class="setting-group">
-                    <label>Background Image</label>
-                    <button id="modal-bg-btn" class="action-btn" style="width:auto; padding: 5px 15px;">Choose</button>
-                    <input type="file" id="bg-input" accept="image/*" style="display: none;">
+                    <input type="range" id="bubble-radius" min="0" max="30" value="12">
                 </div>
                 <div class="setting-group slider-group">
                     <label>Glass Blur Intensity</label>
-                    <input type="range" id="glass-blur" min="0" max="30" value="8">
+                    <input type="range" id="glass-blur" min="0" max="40" value="8">
                 </div>
-                <div class="setting-group"><label>Header Color</label><input type="color" id="color-header" value="#1e293b"></div>
-                <div class="setting-group"><label>Sent Color</label><input type="color" id="color-sent" value="#6366f1"></div>
-                <div class="setting-group"><label>Received Color</label><input type="color" id="color-received" value="#ffffff"></div>
-                <div class="setting-group"><label>Text Color</label><input type="color" id="color-text" value="#ffffff"></div>
+                
+                <h4 class="settings-section-title">🖼️ Media & Custom</h4>
+                <div class="setting-group">
+                    <label>Chat Wallpaper</label>
+                    <button id="modal-bg-btn" class="action-btn" style="width:auto; padding: 5px 15px;">Upload Image</button>
+                    <input type="file" id="bg-input" accept="image/*" style="display: none;">
+                </div>
+                <div class="custom-color-pickers">
+                    <div class="color-picker-item"><label>Header</label><input type="color" id="color-header" value="#1e293b"></div>
+                    <div class="color-picker-item"><label>Sent</label><input type="color" id="color-sent" value="#6366f1"></div>
+                    <div class="color-picker-item"><label>Received</label><input type="color" id="color-received" value="#ffffff"></div>
+                    <div class="color-picker-item"><label>Text</label><input type="color" id="color-text" value="#ffffff"></div>
+                </div>
             </div>
             <div class="modal-footer" style="flex-direction: column; gap: 10px;">
-                <button id="save-settings-btn" class="action-btn success">Save & Apply</button>
-                <button id="reset-settings-btn" class="action-btn danger">Reset Defaults</button>
+                <button id="save-settings-btn" class="action-btn success">Apply My Style</button>
+                <button id="reset-settings-btn" class="action-btn danger">Reset All Design</button>
             </div>
         </div>
     </div>
