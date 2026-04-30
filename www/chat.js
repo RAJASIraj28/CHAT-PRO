@@ -56,8 +56,11 @@ document.addEventListener('DOMContentLoaded', () => {
     finishOnboardBtn.addEventListener('click', () => {
         myName = onboardNameInput.value.trim();
         localStorage.setItem('my_chat_name', myName);
-        onboardScreen.style.display = 'none';
-        initApp();
+        onboardScreen.style.opacity = '0';
+        setTimeout(() => {
+            onboardScreen.style.display = 'none';
+            initApp();
+        }, 400);
     });
 
     function initApp() {
