@@ -24,6 +24,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const SEA = Gun.SEA;
 
+    // ======== MQTT REAL-TIME BACKUP ========
+    // GUN relays fail frequently in browsers. MQTT guarantees instant delivery.
+    const mqttClient = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+    const MQTT_TOPIC = 'prochat_global_mqtt_final_v1';
+    
+    mqttClient.on('connect', () => {
+        mqttClient.subscribe(MQTT_TOPIC);
+    });
+
+    mqttClient.on('message', (topic, message) => {
+        if (topic === MQTT_TOPIC) {
+            try {
+                const data = JSON.parse(message.toString());
+                const id = data.msgId;
+                if (data && (data.text || data.audio) && data.sender) {
+                    if (!messageStore.global.find(m => m.id === id)) {
+                        messageStore.global.push({ id, ...data });
+                        messageStore.global.sort((a, b) => (a.time || 0) - (b.time || 0));
+                        if (currentChat === 'global') {
+                            const type = data.sender === myName ? 'sent' : 'received';
+                            appendMessage(data.sender, data.text || null, type, id, data.audio || null, data.time);
+                        }
+                    }
+                }
+            } catch(e){}
+        }
+    });
+
     // Use a unique, consistent room key both devices must share
     const GLOBAL_ROOM = 'prochat_global_room_final_v1';
     const globalChat = gun.get(GLOBAL_ROOM);
@@ -320,7 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.onloadend = () => {
             const b64 = reader.result;
             if (currentChat === 'global') {
-                globalChat.set({ sender: myName, audio: b64, time: Date.now() });
+                const msgId = 'msg_' + Math.random().toString(36).substr(2, 9);
+                const payload = { sender: myName, audio: b64, time: Date.now(), msgId };
+                globalChat.set(payload);
+                mqttClient.publish(MQTT_TOPIC, JSON.stringify(payload));
             } else if (activePeerId) {
                 const roomId = getRoomId();
                 privateRelay.get(roomId).set({ sender: myName, audio: b64, time: Date.now() });
@@ -432,11 +463,10 @@ document.addEventListener('DOMContentLoaded', () => {
         msgInput.value = '';
 
         if (currentChat === 'global') {
-            globalChat.set({
-                sender: myName,
-                text: text,
-                time: Date.now()
-            });
+            const msgId = 'msg_' + Math.random().toString(36).substr(2, 9);
+            const payload = { sender: myName, text: text, time: Date.now(), msgId };
+            globalChat.set(payload);
+            mqttClient.publish(MQTT_TOPIC, JSON.stringify(payload));
         } else if (activePeerId) {
             const key = getRoomId();
             const enc = await SEA.encrypt(text, key);
