@@ -329,35 +329,52 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // ======== MESSAGE STORE ========
+    const messageStore = { global: [], private: {} };
+    let globalListenerAttached = false;
+
+    function attachGlobalListener() {
+        if (globalListenerAttached) return;
+        globalListenerAttached = true;
+        globalChat.map().on((data, id) => {
+            if (data && (data.text || data.audio) && data.sender) {
+                if (!messageStore.global.find(m => m.id === id)) {
+                    messageStore.global.push({ id, ...data });
+                    messageStore.global.sort((a, b) => a.time - b.time); // sort by time
+                    if (currentChat === 'global') {
+                        const type = data.sender === myName ? 'sent' : 'received';
+                        appendMessage(data.sender, data.text || null, type, id, data.audio || null, data.time);
+                    }
+                }
+            }
+        });
+    }
+
     // ======== GLOBAL CHAT ========
-    // FIX 3: Guard flag — only attach .map().on() ONCE, not every time user opens global chat
     function loadGlobalChat() {
         currentChat = 'global';
         activePeerId = null;
         chatBody.innerHTML = '';
-        rendered.clear();  // Safe to clear — same room re-loaded fresh
+        rendered.clear();
         chatTitle.textContent = 'Global Community';
         videoCallBtn.classList.add('hidden');
         statusText.textContent = '● Online';
 
-        // Highlight global button
         document.querySelectorAll('.contact-row').forEach(r => r.classList.remove('active-contact'));
         document.getElementById('global-btn').classList.add('active-contact');
 
-        if (!globalListenerActive) {
-            globalListenerActive = true;
-            globalChat.map().on((data, id) => {
-                // Only show if we are on global chat right now
-                if (currentChat !== 'global') return;
-                if (data && (data.text || data.audio) && data.sender) {
-                    const type = data.sender === myName ? 'sent' : 'received';
-                    appendMessage(data.sender, data.text || null, type, id, data.audio || null, data.time);
-                }
-            });
-        }
+        attachGlobalListener();
+
+        // Render from memory
+        messageStore.global.forEach(data => {
+            const type = data.sender === myName ? 'sent' : 'received';
+            appendMessage(data.sender, data.text || null, type, data.id, data.audio || null, data.time);
+        });
     }
 
     // ======== PRIVATE CHAT ========
+    const activePrivateListeners = new Set();
+
     async function loadPrivateChat(friendId) {
         currentChat = 'private';
         activePeerId = friendId;
@@ -368,19 +385,39 @@ document.addEventListener('DOMContentLoaded', () => {
         statusText.textContent = '● Encrypted';
 
         const roomId = getRoomId();
-        const key = roomId;
+        if (!messageStore.private[roomId]) messageStore.private[roomId] = [];
 
-        privateRelay.get(roomId).map().on(async (data, id) => {
-            if (currentChat !== 'private' || activePeerId !== friendId) return;
-            if (data && (data.text || data.audio) && data.sender) {
-                let text = data.text || null;
-                if (text) {
-                    try { text = await SEA.decrypt(text, key); } catch (e) { text = '[encrypted]'; }
-                }
-                const type = data.sender === myName ? 'sent' : 'received';
-                appendMessage(data.sender, text, type, id, data.audio || null, data.time);
+        // Render from memory
+        for (const data of messageStore.private[roomId]) {
+            let text = data.text || null;
+            if (text) {
+                try { text = await SEA.decrypt(text, roomId); } catch (e) { text = '[encrypted]'; }
             }
-        });
+            const type = data.sender === myName ? 'sent' : 'received';
+            appendMessage(data.sender, text, type, data.id, data.audio || null, data.time);
+        }
+
+        // Attach listener only once per room
+        if (!activePrivateListeners.has(roomId)) {
+            activePrivateListeners.add(roomId);
+            privateRelay.get(roomId).map().on(async (data, id) => {
+                if (data && (data.text || data.audio) && data.sender) {
+                    if (!messageStore.private[roomId].find(m => m.id === id)) {
+                        messageStore.private[roomId].push({ id, ...data });
+                        messageStore.private[roomId].sort((a, b) => a.time - b.time);
+                        
+                        if (currentChat === 'private' && activePeerId === friendId) {
+                            let text = data.text || null;
+                            if (text) {
+                                try { text = await SEA.decrypt(text, roomId); } catch (e) { text = '[encrypted]'; }
+                            }
+                            const type = data.sender === myName ? 'sent' : 'received';
+                            appendMessage(data.sender, text, type, id, data.audio || null, data.time);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     function switchChat(type, friendId = null) {
