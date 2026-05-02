@@ -12,20 +12,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const rendered = new Set();         // FIX 4: keep rendered Set at top scope, persists across chat switches
 
     // ======== GUN.JS SETUP ========
-    // FIX 1: Replaced dead Heroku peers with working public GUN relay servers
+    // Using verified active relays for 2025
     const gun = Gun({
         peers: [
-            'https://gun-manhattan.herokuapp.com/gun',   // kept as fallback (sometimes up)
-            'wss://gun-us.herokuapp.com/gun',
-            'https://relay.peer.ooo/gun',
-            'https://gundb-relay-mlccl.ondigitalocean.app/gun'
+            'https://gun-rs.iris.to/gun',
+            'https://hub.bugout.link/gun',
+            'https://gun.hashbase.io/gun',
+            'https://gun.glitch.me/gun'
         ]
     });
 
     const SEA = Gun.SEA;
 
     // Use a unique, consistent room key both devices must share
-    const GLOBAL_ROOM = 'prochat_global_room_2025_v1';
+    const GLOBAL_ROOM = 'prochat_global_room_final_v1';
     const globalChat = gun.get(GLOBAL_ROOM);
     const privateRelay = gun.get('prochat_private_relay_2025_v1');
 
@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data && (data.text || data.audio) && data.sender) {
                 if (!messageStore.global.find(m => m.id === id)) {
                     messageStore.global.push({ id, ...data });
-                    messageStore.global.sort((a, b) => a.time - b.time); // sort by time
+                    messageStore.global.sort((a, b) => (a.time || 0) - (b.time || 0)); // sort safely
                     if (currentChat === 'global') {
                         const type = data.sender === myName ? 'sent' : 'received';
                         appendMessage(data.sender, data.text || null, type, id, data.audio || null, data.time);
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data && (data.text || data.audio) && data.sender) {
                     if (!messageStore.private[roomId].find(m => m.id === id)) {
                         messageStore.private[roomId].push({ id, ...data });
-                        messageStore.private[roomId].sort((a, b) => a.time - b.time);
+                        messageStore.private[roomId].sort((a, b) => (a.time || 0) - (b.time || 0));
                         
                         if (currentChat === 'private' && activePeerId === friendId) {
                             let text = data.text || null;
