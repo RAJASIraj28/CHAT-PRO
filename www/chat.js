@@ -240,10 +240,38 @@ document.addEventListener('DOMContentLoaded', () => {
         call.on('error', endCall);
     }
 
+    // ======== MIC / CAM TOGGLE (were wired in HTML but had no JS handlers) ========
+    let micMuted = false;
+    let camOff = false;
+
+    document.getElementById('toggle-mic').addEventListener('click', () => {
+        if (!localStream) return;
+        micMuted = !micMuted;
+        localStream.getAudioTracks().forEach(t => { t.enabled = !micMuted; });
+        const btn = document.getElementById('toggle-mic');
+        btn.textContent = micMuted ? '🔇' : '🎙️';
+        btn.style.background = micMuted ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.18)';
+    });
+
+    document.getElementById('toggle-cam').addEventListener('click', () => {
+        if (!localStream) return;
+        camOff = !camOff;
+        localStream.getVideoTracks().forEach(t => { t.enabled = !camOff; });
+        const btn = document.getElementById('toggle-cam');
+        btn.textContent = camOff ? '📵' : '📹';
+        btn.style.background = camOff ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.18)';
+    });
+
     function endCall() {
         if (currentCall) { currentCall.close(); currentCall = null; }
         if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
         callingUI.classList.remove('active');
+        // Reset mic/cam button states for next call
+        micMuted = false; camOff = false;
+        document.getElementById('toggle-mic').textContent = '🎙️';
+        document.getElementById('toggle-mic').style.background = '';
+        document.getElementById('toggle-cam').textContent = '📹';
+        document.getElementById('toggle-cam').style.background = '';
     }
 
     document.getElementById('end-call-btn').addEventListener('click', endCall);
@@ -257,9 +285,15 @@ document.addEventListener('DOMContentLoaded', () => {
     async function startRecording() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            // FIX: pick a mimeType supported by this browser (iOS Safari needs mp4)
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                ? 'audio/webm;codecs=opus'
+                : MediaRecorder.isTypeSupported('audio/mp4')
+                    ? 'audio/mp4'
+                    : '';
+            mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
             audioChunks = [];
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.onstop = sendVoiceMessage;
             mediaRecorder.start();
             voiceOverlay.classList.add('active');
@@ -274,7 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function sendVoiceMessage() {
-        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        if (audioChunks.length === 0) return;
+        const mimeType = audioChunks[0].type || 'audio/webm';
+        const blob = new Blob(audioChunks, { type: mimeType });
         const reader = new FileReader();
         reader.readAsDataURL(blob);
         reader.onloadend = () => {
