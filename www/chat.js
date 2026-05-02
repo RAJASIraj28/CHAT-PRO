@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (currentChat !== 'global') return;
                 if (data && (data.text || data.audio) && data.sender) {
                     const type = data.sender === myName ? 'sent' : 'received';
-                    appendMessage(data.sender, data.text || null, type, id, data.audio || null);
+                    appendMessage(data.sender, data.text || null, type, id, data.audio || null, data.time);
                 }
             });
         }
@@ -373,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try { text = await SEA.decrypt(text, key); } catch (e) { text = '[encrypted]'; }
                 }
                 const type = data.sender === myName ? 'sent' : 'received';
-                appendMessage(data.sender, text, type, id, data.audio || null);
+                appendMessage(data.sender, text, type, id, data.audio || null, data.time);
             }
         });
     }
@@ -414,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return [peer.id, activePeerId].sort().join('__');
     }
 
-    function appendMessage(sender, text, type, id, audio = null) {
+    function appendMessage(sender, text, type, id, audio = null, time = null) {
         if (!id || rendered.has(id)) return;
         rendered.add(id);
 
@@ -456,7 +456,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Timestamp
         const timeEl = document.createElement('span');
         timeEl.className = 'msg-time';
-        timeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const msgDate = time ? new Date(time) : new Date();
+        timeEl.textContent = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         bubble.appendChild(timeEl);
 
         row.appendChild(bubble);
