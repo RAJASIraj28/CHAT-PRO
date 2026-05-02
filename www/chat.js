@@ -2,45 +2,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ======== STATE ========
     let myName = localStorage.getItem('pro_chat_name') || '';
-    let currentChat = 'global'; // 'global' or 'private'
+    let currentChat = 'global';
     let activePeerId = null;
     let localStream = null;
     let currentCall = null;
     let mediaRecorder = null;
     let audioChunks = [];
+    let globalListenerActive = false;   // FIX 3: prevent re-attaching listener
+    const rendered = new Set();         // FIX 4: keep rendered Set at top scope, persists across chat switches
 
     // ======== GUN.JS SETUP ========
-    const gun = Gun({ peers: ['https://gun-manhattan.herokuapp.com/gun', 'https://gun-us.herokuapp.com/gun'] });
+    // FIX 1: Replaced dead Heroku peers with working public GUN relay servers
+    const gun = Gun({
+        peers: [
+            'https://gun-manhattan.herokuapp.com/gun',   // kept as fallback (sometimes up)
+            'wss://gun-us.herokuapp.com/gun',
+            'https://relay.peer.ooo/gun',
+            'https://gundb-relay-mlccl.ondigitalocean.app/gun'
+        ]
+    });
+
     const SEA = Gun.SEA;
-    const globalChat = gun.get('pro_chat_global_v4_final');
-    const privateRelay = gun.get('pro_chat_private_v4_final');
+
+    // Use a unique, consistent room key both devices must share
+    const GLOBAL_ROOM = 'prochat_global_room_2025_v1';
+    const globalChat = gun.get(GLOBAL_ROOM);
+    const privateRelay = gun.get('prochat_private_relay_2025_v1');
 
     // ======== PEERJS SETUP ========
+    // FIX 2: Changed 'url' → 'urls' (correct WebRTC ICE server property name)
     const peer = new Peer(undefined, {
         config: {
             iceServers: [
-                { url: 'stun:stun.l.google.com:19302' },
-                { url: 'stun:stun1.l.google.com:19302' },
-                { url: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' },
+                {
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                }
             ]
-        }
+        },
+        debug: 0
     });
 
     // ======== DOM REFS ========
-    const onboarding = document.getElementById('onboarding');
-    const nameInput = document.getElementById('name-input');
-    const startBtn = document.getElementById('start-btn');
-    const sidebar = document.getElementById('sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const chatBody = document.getElementById('chat-body');
-    const msgInput = document.getElementById('msg-input');
-    const sendBtn = document.getElementById('send-btn');
-    const voiceBtn = document.getElementById('voice-btn');
-    const voiceOverlay = document.getElementById('voice-overlay');
-    const callingUI = document.getElementById('calling-ui');
-    const chatTitle = document.getElementById('chat-title');
-    const videoCallBtn = document.getElementById('video-call-btn');
-    const statusText = document.getElementById('status-text');
+    const onboarding    = document.getElementById('onboarding');
+    const nameInput     = document.getElementById('name-input');
+    const startBtn      = document.getElementById('start-btn');
+    const sidebar       = document.getElementById('sidebar');
+    const sidebarOverlay= document.getElementById('sidebar-overlay');
+    const chatBody      = document.getElementById('chat-body');
+    const msgInput      = document.getElementById('msg-input');
+    const sendBtn       = document.getElementById('send-btn');
+    const voiceBtn      = document.getElementById('voice-btn');
+    const voiceOverlay  = document.getElementById('voice-overlay');
+    const callingUI     = document.getElementById('calling-ui');
+    const chatTitle     = document.getElementById('chat-title');
+    const videoCallBtn  = document.getElementById('video-call-btn');
+    const statusText    = document.getElementById('status-text');
 
     // ======== ONBOARDING ========
     if (myName) {
@@ -64,13 +90,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // ======== INIT ========
     function initApp() {
         loadGlobalChat();
+        updateConnectionStatus();
+    }
+
+    // ======== CONNECTION STATUS ========
+    function updateConnectionStatus() {
+        // Poll GUN connection state
+        const check = setInterval(() => {
+            if (gun._.opt && gun._.opt.peers) {
+                const peers = Object.keys(gun._.opt.peers);
+                const connected = peers.some(p => {
+                    const peer = gun._.opt.peers[p];
+                    return peer && peer.wire && peer.wire.readyState === 1;
+                });
+                statusText.textContent = connected ? '● Online' : '● Connecting...';
+            }
+        }, 3000);
     }
 
     // ======== SIDEBAR ========
     document.getElementById('open-sidebar').addEventListener('click', openSidebar);
     document.getElementById('close-sidebar').addEventListener('click', closeSidebar);
     sidebarOverlay.addEventListener('click', closeSidebar);
-    document.getElementById('global-btn').addEventListener('click', () => { switchChat('global'); closeSidebar(); });
+    document.getElementById('global-btn').addEventListener('click', () => {
+        switchChat('global');
+        closeSidebar();
+    });
 
     function openSidebar() {
         sidebar.classList.add('open');
@@ -88,8 +133,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     peer.on('error', err => {
-        console.warn('PeerJS Error:', err);
+        console.warn('PeerJS Error:', err.type, err);
+        // Auto-reconnect on fatal errors
+        if (['network', 'server-error', 'socket-error'].includes(err.type)) {
+            statusText.textContent = '● Reconnecting...';
+        }
+    });
+
+    peer.on('disconnected', () => {
         statusText.textContent = '● Reconnecting...';
+        // Attempt to reconnect
+        setTimeout(() => {
+            if (!peer.destroyed) peer.reconnect();
+        }, 2000);
     });
 
     peer.on('call', async call => {
@@ -109,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('connect-btn').addEventListener('click', () => {
         const id = document.getElementById('friend-id-input').value.trim();
         if (id) {
+            addContactToSidebar(id);
             switchChat('private', id);
             document.getElementById('friend-id-input').value = '';
             closeSidebar();
@@ -117,12 +174,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('copy-id-btn').addEventListener('click', () => {
         const id = document.getElementById('my-peer-id').textContent;
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(id).then(() => alert('ID copied!'));
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(id).then(() => {
+                const btn = document.getElementById('copy-id-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = 'Copy ID'; }, 2000);
+            });
         } else {
             prompt('Copy your ID:', id);
         }
     });
+
+    // ======== CONTACT LIST ========
+    const savedContacts = JSON.parse(localStorage.getItem('pro_chat_contacts') || '[]');
+    savedContacts.forEach(addContactToSidebar);
+
+    function addContactToSidebar(id) {
+        // Save to localStorage
+        if (!savedContacts.includes(id)) {
+            savedContacts.push(id);
+            localStorage.setItem('pro_chat_contacts', JSON.stringify(savedContacts));
+        }
+
+        const list = document.getElementById('contact-list');
+        // Don't duplicate
+        if (document.getElementById(`contact-${id}`)) return;
+
+        const row = document.createElement('div');
+        row.className = 'contact-row';
+        row.id = `contact-${id}`;
+        row.innerHTML = `
+            <div class="c-avatar">${id.charAt(0).toUpperCase()}</div>
+            <div class="c-info">
+                <h4>${id.substring(0, 10)}...</h4>
+                <p>Private Chat</p>
+            </div>`;
+        row.addEventListener('click', () => {
+            document.querySelectorAll('.contact-row').forEach(r => r.classList.remove('active-contact'));
+            row.classList.add('active-contact');
+            switchChat('private', id);
+            closeSidebar();
+        });
+        list.appendChild(row);
+    }
 
     // ======== VIDEO CALLING ========
     videoCallBtn.addEventListener('click', async () => {
@@ -139,7 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCall(call) {
         currentCall = call;
         callingUI.classList.add('active');
-        call.on('stream', stream => { document.getElementById('remote-video').srcObject = stream; });
+        call.on('stream', stream => {
+            document.getElementById('remote-video').srcObject = stream;
+        });
         call.on('close', endCall);
         call.on('error', endCall);
     }
@@ -192,29 +288,41 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // ======== CHAT LOGIC ========
-    let globalListener = null;
-
+    // ======== GLOBAL CHAT ========
+    // FIX 3: Guard flag — only attach .map().on() ONCE, not every time user opens global chat
     function loadGlobalChat() {
         currentChat = 'global';
         activePeerId = null;
         chatBody.innerHTML = '';
+        rendered.clear();  // Safe to clear — same room re-loaded fresh
         chatTitle.textContent = 'Global Community';
         videoCallBtn.classList.add('hidden');
         statusText.textContent = '● Online';
 
-        globalChat.map().on((data, id) => {
-            if (data && (data.text || data.audio)) {
-                appendMessage(data.sender, data.text, data.sender === myName ? 'sent' : 'received', id, data.audio);
-            }
-        });
+        // Highlight global button
+        document.querySelectorAll('.contact-row').forEach(r => r.classList.remove('active-contact'));
+        document.getElementById('global-btn').classList.add('active-contact');
+
+        if (!globalListenerActive) {
+            globalListenerActive = true;
+            globalChat.map().on((data, id) => {
+                // Only show if we are on global chat right now
+                if (currentChat !== 'global') return;
+                if (data && (data.text || data.audio) && data.sender) {
+                    const type = data.sender === myName ? 'sent' : 'received';
+                    appendMessage(data.sender, data.text || null, type, id, data.audio || null);
+                }
+            });
+        }
     }
 
+    // ======== PRIVATE CHAT ========
     async function loadPrivateChat(friendId) {
         currentChat = 'private';
         activePeerId = friendId;
         chatBody.innerHTML = '';
-        chatTitle.textContent = `🔒 ${friendId.substring(0, 8)}...`;
+        rendered.clear();
+        chatTitle.textContent = `🔒 ${friendId.substring(0, 10)}...`;
         videoCallBtn.classList.remove('hidden');
         statusText.textContent = '● Encrypted';
 
@@ -222,12 +330,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = roomId;
 
         privateRelay.get(roomId).map().on(async (data, id) => {
-            if (data && (data.text || data.audio)) {
-                let text = data.text;
+            if (currentChat !== 'private' || activePeerId !== friendId) return;
+            if (data && (data.text || data.audio) && data.sender) {
+                let text = data.text || null;
                 if (text) {
-                    try { text = await SEA.decrypt(text, key); } catch (e) {}
+                    try { text = await SEA.decrypt(text, key); } catch (e) { text = '[encrypted]'; }
                 }
-                appendMessage(data.sender, text, data.sender === myName ? 'sent' : 'received', id, data.audio);
+                const type = data.sender === myName ? 'sent' : 'received';
+                appendMessage(data.sender, text, type, id, data.audio || null);
             }
         });
     }
@@ -237,17 +347,26 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (friendId) loadPrivateChat(friendId);
     }
 
+    // ======== SEND MESSAGE ========
     async function sendMessage() {
         const text = msgInput.value.trim();
         if (!text) return;
         msgInput.value = '';
 
         if (currentChat === 'global') {
-            globalChat.set({ sender: myName, text, time: Date.now() });
+            globalChat.set({
+                sender: myName,
+                text: text,
+                time: Date.now()
+            });
         } else if (activePeerId) {
             const key = getRoomId();
             const enc = await SEA.encrypt(text, key);
-            privateRelay.get(getRoomId()).set({ sender: myName, text: enc, time: Date.now() });
+            privateRelay.get(getRoomId()).set({
+                sender: myName,
+                text: enc,
+                time: Date.now()
+            });
         }
     }
 
@@ -259,7 +378,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return [peer.id, activePeerId].sort().join('__');
     }
 
-    const rendered = new Set();
     function appendMessage(sender, text, type, id, audio = null) {
         if (!id || rendered.has(id)) return;
         rendered.add(id);
@@ -268,13 +386,24 @@ document.addEventListener('DOMContentLoaded', () => {
         row.className = `msg-row ${type}`;
         row.id = `m-${id}`;
 
+        // Avatar (received only)
+        if (type === 'received') {
+            const avatar = document.createElement('div');
+            avatar.className = 'msg-avatar';
+            avatar.textContent = (sender || '?').charAt(0).toUpperCase();
+            row.appendChild(avatar);
+        }
+
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
 
-        const nameEl = document.createElement('p');
-        nameEl.className = 'sender-name';
-        nameEl.textContent = sender;
-        bubble.appendChild(nameEl);
+        // Sender name for received messages
+        if (type === 'received') {
+            const nameEl = document.createElement('p');
+            nameEl.className = 'sender-name';
+            nameEl.textContent = sender;
+            bubble.appendChild(nameEl);
+        }
 
         if (audio) {
             const player = document.createElement('audio');
@@ -287,6 +416,12 @@ document.addEventListener('DOMContentLoaded', () => {
             textEl.textContent = text;
             bubble.appendChild(textEl);
         }
+
+        // Timestamp
+        const timeEl = document.createElement('span');
+        timeEl.className = 'msg-time';
+        timeEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        bubble.appendChild(timeEl);
 
         row.appendChild(bubble);
         chatBody.appendChild(row);
