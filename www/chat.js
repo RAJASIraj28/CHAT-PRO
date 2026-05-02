@@ -130,6 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
     peer.on('open', id => {
         document.getElementById('my-peer-id').textContent = id;
         statusText.textContent = '● Encrypted';
+        // Listen for incoming private chats
+        gun.get('prochat_inbox_v1_' + id).map().on((val, senderId) => {
+            if (val) addContactToSidebar(senderId);
+        });
     });
 
     peer.on('error', err => {
@@ -320,6 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (activePeerId) {
                 const roomId = getRoomId();
                 privateRelay.get(roomId).set({ sender: myName, audio: b64, time: Date.now() });
+                gun.get('prochat_inbox_v1_' + activePeerId).get(peer.id).put(true);
             }
         };
     }
@@ -403,6 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 text: enc,
                 time: Date.now()
             });
+            gun.get('prochat_inbox_v1_' + activePeerId).get(peer.id).put(true);
         }
     }
 
