@@ -541,20 +541,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = msgInput.value.trim();
         if (text) {
             const time = formatTime();
-            const tempId = Date.now().toString();
+            const tempId = 'msg_' + Date.now();
             const disappearVal = parseInt(document.getElementById('disappear-select').value);
             const expiresAt = disappearVal > 0 ? Date.now() + disappearVal : null;
             const msgObj = { text: text };
             
             if (activeMode === 'private') {
-                renderMessageToDOM(msgObj, 'sent', tempId, time, replyingToContext, expiresAt, true);
-                saveMessage(activeFriendId, { id: tempId, type: 'sent', content: msgObj, time: time, quoted: replyingToContext, expiresAt });
-                activeConnection.send({ type: 'message', content: msgObj, id: tempId, time: time, quoted: replyingToContext, expiresAt: expiresAt });
+                const history = chatHistory[activeFriendId] || [];
+                if (!history.find(m => m.id === tempId)) {
+                    renderMessageToDOM(msgObj, 'sent', tempId, time, replyingToContext, expiresAt, true);
+                    saveMessage(activeFriendId, { id: tempId, type: 'sent', content: msgObj, time: time, quoted: replyingToContext, expiresAt });
+                }
+                
+                if (activeConnection) {
+                    activeConnection.send({ type: 'message', content: msgObj, id: tempId, time: time, quoted: replyingToContext, expiresAt: expiresAt });
+                }
                 
                 const roomId = [myPeerId, activeFriendId].sort().join('-');
                 mqttClient.publish(`prochat/private/${roomId}`, JSON.stringify({ sender: myPeerId, content: msgObj, msgId: tempId, time, quoted: replyingToContext, expiresAt }));
             } else {
-                renderMessageToDOM(msgObj, 'sent', tempId, time, replyingToContext, null, true);
+                if (!communityMessagesRendered.has(tempId)) {
+                    communityMessagesRendered.add(tempId);
+                    renderMessageToDOM(msgObj, 'sent', tempId, time, replyingToContext, null, true);
+                }
                 const payload = { content: JSON.stringify(msgObj), timeStr: time, quoted: replyingToContext, sender: myPeerId, senderName: myName || 'Anonymous', msgId: tempId };
                 communityRoom.get(tempId).put(payload);
                 mqttClient.publish(GLOBAL_MQTT_TOPIC, JSON.stringify(payload));

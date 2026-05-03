@@ -62,7 +62,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .video-controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 202;}
 
 /* Chat Container */
-.chat-container { width: 100%; max-width: 100%; background-color: var(--bg-color); background-image: var(--bg-image); background-size: cover; background-position: center; display: flex; flex-direction: column; height: 100%; position: relative; transition: background 0.3s ease; }
+.chat-container { width: 100vw; height: 100vh; height: 100dvh; background-color: var(--bg-color); background-image: var(--bg-image); background-size: cover; background-position: center; display: flex; flex-direction: column; position: relative; transition: background 0.3s ease; overflow: hidden; }
 .chat-container::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); pointer-events: none; z-index: 0; }
 .chat-header, .chat-main, .smart-replies, .chat-input-area, .typing-indicator, #reply-preview { position: relative; z-index: 10; }
 
