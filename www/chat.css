@@ -154,6 +154,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .action-btn:hover { opacity: 0.9; }
 .action-btn.success { background: #10b981; color: white; }
 .action-btn.danger { background: #ef4444; color: white; }
+.clickable { cursor: pointer; }
+.clickable:hover { text-decoration: underline; }
 /* Camera Overlay */
 #camera-overlay { position: fixed; inset: 0; background: #000; z-index: 500; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 #camera-overlay.hidden { display: none; }

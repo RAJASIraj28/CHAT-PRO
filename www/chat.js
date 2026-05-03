@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         try { msgContent = JSON.parse(msgContent); } catch(e){}
                     }
                     
-                    renderMessageToDOM(msgContent, isMine ? 'sent' : 'received', data.msgId, data.timeStr, data.quoted, null, true, data.senderName);
+                    renderMessageToDOM(msgContent, isMine ? 'sent' : 'received', data.msgId, data.timeStr, data.quoted, null, true, data.senderName, data.sender);
                 }
             } catch(e){}
         } else if (topic.startsWith('prochat/private/') && activeMode === 'private') {
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data && data.content && !communityMessagesRendered.has(id)) {
                 communityMessagesRendered.add(id);
                 const isMine = data.sender === myPeerId;
-                renderMessageToDOM(JSON.parse(data.content), isMine ? 'sent' : 'received', id, data.timeStr, data.quoted, null, false, data.senderName);
+                renderMessageToDOM(JSON.parse(data.content), isMine ? 'sent' : 'received', id, data.timeStr, data.quoted, null, false, data.senderName, data.sender);
             }
         });
     }
@@ -190,6 +190,13 @@ document.addEventListener('DOMContentLoaded', () => {
         contacts[id] = name;
         localStorage.setItem('p2p_contacts', JSON.stringify(contacts));
         renderContacts();
+    }
+
+    function startPrivateChat(id, name) {
+        if (!contacts[id]) {
+            saveContact(id, name);
+        }
+        connectToPeer(id);
     }
 
     function renderContacts() {
@@ -431,7 +438,7 @@ document.addEventListener('DOMContentLoaded', () => {
         messagesContainer.appendChild(div);
     }
 
-    function renderMessageToDOM(content, type, id, timeStr, quotedText, expiresAt, isNew = false, senderName = null) {
+    function renderMessageToDOM(content, type, id, timeStr, quotedText, expiresAt, isNew = false, senderName = null, senderId = null) {
         const wrapper = document.createElement('div');
         wrapper.className = `message-wrapper ${type}-wrap`;
         
@@ -446,8 +453,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if(senderName && type === 'received' && activeMode === 'community') {
             const nameDiv = document.createElement('div');
-            nameDiv.className = 'sender-name';
+            nameDiv.className = 'sender-name clickable';
             nameDiv.textContent = senderName;
+            nameDiv.title = "Click to chat privately";
+            nameDiv.addEventListener('click', () => {
+                if (senderId && senderId !== myPeerId) {
+                    startPrivateChat(senderId, senderName);
+                }
+            });
             msgDiv.appendChild(nameDiv);
         }
 
