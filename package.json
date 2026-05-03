@@ -1,20 +1,19 @@
 {
   "name": "pro-chat-global",
   "version": "1.0.0",
-  "description": "Serverless P2P Chat App",
-  "main": "server.js",
+  "description": "Decentralized P2P Chat with E2EE",
+  "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "echo 'Building web assets...'",
-    "cap-copy": "npx cap copy",
-    "cap-sync": "npx cap sync"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "@capacitor/android": "^5.0.0",
     "@capacitor/cli": "^5.0.0",
     "@capacitor/core": "^5.0.0",
-    "gun": "^0.2020.1239",
+    "gun": "^0.2020.1241",
     "peerjs": "^1.4.7",
-    "socket.io": "^4.7.2"
-  }
+    "mqtt": "^5.0.0"
+  },
+  "author": "",
+  "license": "ISC"
 }
