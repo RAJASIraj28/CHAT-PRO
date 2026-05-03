@@ -98,19 +98,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     renderMessageToDOM(msgContent, isMine ? 'sent' : 'received', data.msgId, data.timeStr, data.quoted, null, true, data.senderName, data.sender);
                 }
             } catch(e){}
-        } else if (topic.startsWith('prochat/private/') && activeMode === 'private') {
+        } else if (topic.startsWith('prochat/private/')) {
              try {
                 const data = JSON.parse(message.toString());
-                if (data && data.msgId && data.sender !== myPeerId) {
-                    const history = chatHistory[activeFriendId] || [];
+                const senderId = data.sender;
+                if (data && data.msgId && senderId !== myPeerId) {
+                    const history = chatHistory[senderId] || [];
                     if (!history.find(m => m.id === data.msgId)) {
-                        // Ensure content is an object
                         let msgContent = data.content;
                         if (typeof msgContent === 'string') {
                             try { msgContent = JSON.parse(msgContent); } catch(e){}
                         }
-                        renderMessageToDOM(msgContent, 'received', data.msgId, data.time, data.quoted, data.expiresAt, true);
-                        saveMessage(activeFriendId, { id: data.msgId, type: 'received', content: msgContent, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
+                        
+                        saveMessage(senderId, { id: data.msgId, type: 'received', content: msgContent, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
+                        
+                        // ONLY render if we are currently looking at THIS specific private chat
+                        if (activeMode === 'private' && activeFriendId === senderId) {
+                            renderMessageToDOM(msgContent, 'received', data.msgId, data.time, data.quoted, data.expiresAt, true);
+                        } else {
+                            notifyUser(contacts[senderId] || senderId, 'Sent a private message');
+                        }
                     }
                 }
             } catch(e){}
@@ -260,10 +267,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         conn.on('data', (data) => {
             if (data.type === 'message') {
+                const senderId = conn.peer;
                 if (data.id && !document.getElementById(`msg-${data.id}`)) {
-                    renderMessageToDOM(data.content, 'received', data.id, data.time, data.quoted, data.expiresAt, true);
-                    saveMessage(activeFriendId, { id: data.id, type: 'received', content: data.content, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
-                    notifyUser(contacts[conn.peer], 'Sent a message');
+                    let msgContent = data.content;
+                    if (typeof msgContent === 'string') {
+                        try { msgContent = JSON.parse(msgContent); } catch(e){}
+                    }
+                    
+                    saveMessage(senderId, { id: data.id, type: 'received', content: msgContent, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
+                    
+                    if (activeMode === 'private' && activeFriendId === senderId) {
+                        renderMessageToDOM(msgContent, 'received', data.id, data.time, data.quoted, data.expiresAt, true);
+                    } else {
+                        notifyUser(contacts[senderId] || senderId, 'Sent a private message');
+                    }
                 }
             } else if (data.type === 'typing') {
                 handleRemoteTyping(data.isTyping);
