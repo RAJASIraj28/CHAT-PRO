@@ -88,18 +88,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data && data.msgId && !communityMessagesRendered.has(data.msgId)) {
                     communityMessagesRendered.add(data.msgId);
                     const isMine = data.sender === myPeerId;
-                    renderMessageToDOM(data.content, isMine ? 'sent' : 'received', data.msgId, data.timeStr, data.quoted, null, true, data.senderName);
+                    
+                    // Ensure content is an object
+                    let msgContent = data.content;
+                    if (typeof msgContent === 'string') {
+                        try { msgContent = JSON.parse(msgContent); } catch(e){}
+                    }
+                    
+                    renderMessageToDOM(msgContent, isMine ? 'sent' : 'received', data.msgId, data.timeStr, data.quoted, null, true, data.senderName);
                 }
             } catch(e){}
         } else if (topic.startsWith('prochat/private/') && activeMode === 'private') {
              try {
                 const data = JSON.parse(message.toString());
                 if (data && data.msgId && data.sender !== myPeerId) {
-                    // Check if this message is already in chatHistory
                     const history = chatHistory[activeFriendId] || [];
                     if (!history.find(m => m.id === data.msgId)) {
-                        renderMessageToDOM(data.content, 'received', data.msgId, data.time, data.quoted, data.expiresAt, true);
-                        saveMessage(activeFriendId, { id: data.msgId, type: 'received', content: data.content, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
+                        // Ensure content is an object
+                        let msgContent = data.content;
+                        if (typeof msgContent === 'string') {
+                            try { msgContent = JSON.parse(msgContent); } catch(e){}
+                        }
+                        renderMessageToDOM(msgContent, 'received', data.msgId, data.time, data.quoted, data.expiresAt, true);
+                        saveMessage(activeFriendId, { id: data.msgId, type: 'received', content: msgContent, time: data.time, quoted: data.quoted, expiresAt: data.expiresAt });
                     }
                 }
             } catch(e){}
@@ -209,7 +220,11 @@ document.addEventListener('DOMContentLoaded', () => {
         addSystemMessage("Secure End-to-End Encrypted Chat");
         const history = chatHistory[friendId] || [];
         history.forEach(msg => {
-            renderMessageToDOM(msg.content, msg.type, msg.id, msg.time, msg.quoted, msg.expiresAt, false);
+            let content = msg.content;
+            if (typeof content === 'string') {
+                try { content = JSON.parse(content); } catch(e){}
+            }
+            renderMessageToDOM(content, msg.type, msg.id, msg.time, msg.quoted, msg.expiresAt, false);
         });
     }
 

@@ -11,8 +11,8 @@
     --glass-blur: 8px;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--app-font); }
-body { background-color: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; height: 100dvh; overflow: hidden; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--app-font); -webkit-tap-highlight-color: transparent; }
+body { background-color: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; height: 100dvh; width: 100vw; overflow: hidden; position: fixed; }
 
 /* ONBOARDING SCREEN */
 .onboarding-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #0f172a; z-index: 9999; display: flex; justify-content: center; align-items: center; padding: 20px; transition: opacity 0.5s; }
@@ -71,11 +71,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .menu-icon { cursor: pointer; margin-right: 5px; display: flex; }
 .avatar { width: 40px; height: 40px; background: #64748b; border-radius: 50%; transition: background 0.3s;}
 .avatar.online { background: #10b981; }
-.user-details h2 { font-size: 1.1rem; }
-.status { font-size: 0.8rem; color: #cbd5e1; font-weight: 500; }
+.user-details { overflow: hidden; max-width: 150px; }
+.user-details h2 { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status { font-size: 0.75rem; color: #cbd5e1; font-weight: 500; }
 .status.online { color: #10b981; }
-#settings-btn, #video-call-btn { background: transparent; color: var(--text-color); border: none; cursor: pointer; padding: 4px; transition: transform 0.2s;}
-#settings-btn:hover, #video-call-btn:hover { transform: scale(1.1); }
+#settings-btn, #video-call-btn { background: transparent; color: var(--text-color); border: none; cursor: pointer; padding: 6px; transition: transform 0.2s; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+#settings-btn:hover, #video-call-btn:hover { transform: scale(1.15); background: rgba(255,255,255,0.1); border-radius: 50%; }
+#video-call-btn svg { color: #10b981; filter: drop-shadow(0 0 5px rgba(16,185,129,0.3)); }
+
 
 /* Messages */
 .chat-main { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; overflow-x: hidden; }
