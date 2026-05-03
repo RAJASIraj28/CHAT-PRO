@@ -11,11 +11,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;600;800&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="chat.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@400;500&family=Poppins:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun/sea.js"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
     <!-- ONE-TIME ONBOARDING SCREEN -->
@@ -75,7 +80,19 @@
             <input type="text" id="friend-id-input" placeholder="Paste ID here...">
             <button id="connect-btn" class="action-btn success">Save & Connect</button>
         </div>
+        <div class="user-profile-mini">
+            <div id="sidebar-avatar" class="c-avatar large">?</div>
+            <div class="user-profile-info">
+                <h4 id="sidebar-name">Anonymous</h4>
+                <p id="sidebar-status">Cyber-linked</p>
+            </div>
+            <button id="edit-profile-btn">✏️</button>
+        </div>
+        <div class="sidebar-search">
+            <input type="text" id="contact-search" placeholder="Search contacts...">
+        </div>
         <div class="contact-list" id="contact-list"></div>
+
     </div>
 
     <!-- Video Call Modal -->
@@ -89,28 +106,30 @@
 
     <!-- Main Chat Interface -->
     <div class="chat-container">
-        <header class="chat-header">
-            <div class="header-info">
-                <div class="menu-icon" id="open-sidebar">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
-                </div>
-                <div class="avatar" id="header-avatar" style="display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:1.2rem; background:#8b5cf6;">🌍</div>
-                <div class="user-details">
-                    <h2 id="chat-title">Global Community</h2>
-                    <div class="status" id="connection-status">Online</div>
-                </div>
+        <div class="chat-header">
+            <div id="open-sidebar" class="clickable">☰</div>
+            <div id="header-avatar">?</div>
+            <div class="chat-header-info">
+            <h3 id="chat-title">Global Community</h3>
+            <div id="connection-status">
+                <span class="status-dot"></span> 
+                <span id="status-text">Mesh Syncing...</span>
+                <span id="peer-count-badge">● 0 Peers Live</span>
             </div>
-            <div class="header-actions" style="display:flex; gap:15px;">
+        </div>
+            <div class="header-actions">
+                <div class="header-search-box">
+                    <input type="text" id="msg-search" placeholder="Find in chat...">
+                    <button id="search-toggle-btn">🔍</button>
+                </div>
+                <span id="encryption-lock" title="End-to-End Encrypted" style="display:none; margin-right:10px; cursor:help; font-size:14px;">🔒</span>
                 <button id="video-call-btn" title="Video Call" style="display:none;">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                 </button>
-                <button id="settings-btn" title="Settings">
-                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-                    </svg>
-                </button>
+                <button id="settings-btn" title="Settings">⚙️</button>
             </div>
-        </header>
+
+        </div>
         
         <main class="chat-main" id="chat-messages">
             <div class="system-msg">Welcome to the Global Community! Messages here are public. Swipe right on a message to reply.</div>
@@ -136,8 +155,10 @@
             <button id="emoji-btn" title="Emojis">😀</button>
             <input type="text" id="msg-input" placeholder="Message..." autocomplete="off">
             <button id="attach-btn" title="Attach Image">📎</button>
+            <button id="sticker-btn" title="Send Sticker">✨</button>
+            <button id="location-btn" title="Share Location">📍</button>
             <button id="camera-btn" title="Take Photo">📷</button>
-            <input type="file" id="image-upload" accept="image/*" style="display:none;">
+            <input type="file" id="image-upload" accept="image/*,application/*,video/*" style="display:none;">
             <button id="send-btn" class="mic-mode">
                 <svg id="mic-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"></path></svg>
                 <svg id="send-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none;"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
@@ -187,6 +208,20 @@
                 
                 <h4 class="settings-section-title">Colors & Aesthetics</h4>
                 <div class="setting-group">
+                    <label>App Theme</label>
+                    <select id="theme-select" class="action-btn">
+                        <option value="cyber-glass">Cyber-Glass (Default)</option>
+                        <option value="neon-nights">Neon Nights</option>
+                        <option value="minimal-dark">Minimal Dark</option>
+                        <option value="light-mode">Arctic Light</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>Profile Photo</label>
+                    <button id="modal-profile-btn" class="action-btn">Choose Photo</button>
+                    <input type="file" id="profile-input" accept="image/*" style="display:none;">
+                </div>
+                <div class="setting-group">
                     <label>Background Image</label>
                     <button id="modal-bg-btn" class="action-btn" style="width:auto; padding: 5px 15px;">Choose</button>
                     <input type="file" id="bg-input" accept="image/*" style="display: none;">
@@ -216,8 +251,46 @@
         </div>
         <canvas id="camera-canvas" style="display:none;"></canvas>
     </div>
+
+    <!-- Sticker Picker -->
+    <div id="sticker-picker" class="hidden">
+        <div class="sticker-header">
+            <span>Stickers</span>
+            <button id="close-stickers">✕</button>
+        </div>
+        <div class="sticker-grid">
+            <span class="sticker-item" data-sticker="🔥">🔥</span>
+            <span class="sticker-item" data-sticker="🚀">🚀</span>
+            <span class="sticker-item" data-sticker="❤️">❤️</span>
+            <span class="sticker-item" data-sticker="😂">😂</span>
+            <span class="sticker-item" data-sticker="👋">👋</span>
+            <span class="sticker-item" data-sticker="💯">💯</span>
+            <span class="sticker-item" data-sticker="🎉">🎉</span>
+            <span class="sticker-item" data-sticker="✨">✨</span>
+            <span class="sticker-item" data-sticker="💻">💻</span>
+            <span class="sticker-item" data-sticker="🔒">🔒</span>
+        </div>
+    </div>
     
+    <!-- Sound Effects -->
+    <audio id="snd-sent" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_2731c3797c.mp3?filename=pop-up-something-101150.mp3" preload="auto"></audio>
+    <audio id="snd-received" src="https://cdn.pixabay.com/download/audio/2022/03/10/audio_c3523a9d90.mp3?filename=notification-9-100650.mp3" preload="auto"></audio>
+    <audio id="snd-notification" src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0c6ff1bab.mp3?filename=message-incoming-132126.mp3" preload="auto"></audio>
+    
+    <script src="utils.js"></script>
+    <script src="db.js"></script>
+    <script src="pathway.js"></script>
+    <script src="loop.js"></script>
+
+    <script src="circuit.js"></script>
+
+    <script src="persistence.js"></script>
+    <script src="memory.js"></script>
+    <script src="master.js"></script>
+    <script src="animation.js"></script>
+    <script src="ui.js"></script>
     <script src="chat.js"></script>
+
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.log('SW error', e)));
