@@ -290,9 +290,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Clean up previous subscription
+        if (window.currentPrivateTopic) {
+            mqttClient.unsubscribe(window.currentPrivateTopic);
+        }
+        
         // Also subscribe to MQTT for this friend
         const roomId = [myPeerId, activeFriendId].sort().join('-');
-        mqttClient.subscribe(`prochat/private/${roomId}`);
+        window.currentPrivateTopic = `prochat/private/${roomId}`;
+        mqttClient.subscribe(window.currentPrivateTopic);
     }
 
     // Video Calling
@@ -448,6 +454,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return now.getHours() + ':' + (now.getMinutes() < 10 ? '0'+now.getMinutes() : now.getMinutes());
     }
 
+    function downloadMedia(dataUrl, filename) {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     function addSystemMessage(text) {
         const div = document.createElement('div');
         div.classList.add('system-msg');
@@ -506,15 +521,42 @@ document.addEventListener('DOMContentLoaded', () => {
             replyableText = content.text;
         }
         if (content.image) {
+            const imgContainer = document.createElement('div');
+            imgContainer.className = 'media-container';
+            
             const img = document.createElement('img');
             img.src = content.image;
-            msgDiv.appendChild(img);
+            img.className = 'msg-image';
+            img.loading = 'lazy';
+            img.onclick = () => window.open(content.image, '_blank');
+            imgContainer.appendChild(img);
+
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'dl-btn';
+            dlBtn.innerHTML = '📥';
+            dlBtn.onclick = () => downloadMedia(content.image, `image_${Date.now()}.png`);
+            imgContainer.appendChild(dlBtn);
+            
+            msgDiv.appendChild(imgContainer);
         }
+
         if (content.audio) {
+            const audioContainer = document.createElement('div');
+            audioContainer.className = 'media-container';
+
             const audio = document.createElement('audio');
-            audio.controls = true;
             audio.src = content.audio;
-            msgDiv.appendChild(audio);
+            audio.controls = true;
+            audio.className = 'msg-audio';
+            audioContainer.appendChild(audio);
+
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'dl-btn';
+            dlBtn.innerHTML = '📥';
+            dlBtn.onclick = () => downloadMedia(content.audio, `audio_${Date.now()}.webm`);
+            audioContainer.appendChild(dlBtn);
+
+            msgDiv.appendChild(audioContainer);
         }
         
         attachSwipeListener(wrapper, msgDiv, replyableText);
@@ -580,8 +622,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const micIcon = document.getElementById('mic-icon'), sendIcon = document.getElementById('send-icon');
     msgInput.addEventListener('input', () => {
-        if (msgInput.value.trim().length > 0) { sendBtn.classList.remove('mic-mode'); micIcon.style.display = 'none'; sendIcon.style.display = 'block'; } 
-        else { sendBtn.classList.add('mic-mode'); micIcon.style.display = 'block'; sendIcon.style.display = 'none'; }
+        const text = msgInput.value.trim();
+        if (text.length > 0) {
+            sendBtn.classList.remove('mic-mode');
+            micIcon.style.display = 'none';
+            sendIcon.style.display = 'block';
+        } else {
+            sendBtn.classList.add('mic-mode');
+            micIcon.style.display = 'block';
+            sendIcon.style.display = 'none';
+        }
+        
+        const isTyping = text.length > 0;
+        if(activeMode === 'private') {
+            if (activeConnection) activeConnection.send({ type: 'typing', isTyping });
+            if (window.currentPrivateTopic) {
+                mqttClient.publish(window.currentPrivateTopic, JSON.stringify({ type: 'typing', sender: myPeerId, isTyping }));
+            }
+        }
     });
 
     // Voice Notes
