@@ -12,10 +12,10 @@
     "@capacitor/android": "^5.0.0",
     "@capacitor/cli": "^5.0.0",
     "@capacitor/core": "^5.0.0",
-    "compression": "^1.7.4",
+    "compression": "^1.8.1",
     "express": "^5.2.1",
     "gun": "^0.2020.1241",
-    "helmet": "^7.0.0",
+    "helmet": "^7.2.0",
     "mqtt": "^5.0.0",
     "peerjs": "^1.4.7",
     "socket.io": "^4.8.3"

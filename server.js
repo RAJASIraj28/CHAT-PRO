@@ -42,9 +42,8 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files from the root and 'www'
-app.use(express.static(__dirname));
-app.use('/www', express.static(path.join(__dirname, 'www')));
+// Serve static files from 'www'
+app.use(express.static(path.join(__dirname, 'www')));
 
 // ==== GUN RELAY CONFIGURATION ====
 const gun = Gun({

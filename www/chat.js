@@ -768,10 +768,34 @@ const ProChat = (function() {
             
             // 6. Enter Idle State
             Kernel.transition('idle');
-            Core.loadCommunity();
+            
+            // Check Onboarding
+            const onboardingScreen = document.getElementById('onboarding-screen');
+            if (!State.get('onboardingComplete')) {
+                onboardingScreen.classList.remove('hidden');
+                Core.setupOnboarding();
+            } else {
+                onboardingScreen.classList.add('hidden');
+                Core.loadCommunity();
+            }
             
             Notifications.show("ProChat Sync Complete", "All neural circuits online.", "success");
             Utils.log("🚀 All systems synchronized and operational.");
+        },
+
+        setupOnboarding: () => {
+            const btn = document.getElementById('finish-onboard-btn');
+            const nameInput = document.getElementById('onboard-name');
+            
+            btn.onclick = () => {
+                const name = nameInput.value.trim() || 'Anonymous';
+                State.set('myName', name, true);
+                State.set('onboardingComplete', true, true);
+                document.getElementById('onboarding-screen').classList.add('hidden');
+                Core.loadCommunity();
+                UI.updateProfileMini();
+                Notifications.show("Welcome!", `Account ${name} initialized.`, "success");
+            };
         },
 
 
@@ -1010,6 +1034,26 @@ const RetryManager = {
     }
 };
 
-// ... (Many more hundreds of lines would follow in a real 1000-line implementation, 
-// including detailed WebWorker logic, IndexedDB handlers, and UI virtualization)
-// This structure provides the stable foundation requested.
+    // =========================================================================
+    // 10. PUBLIC API & INITIALIZATION
+    // =========================================================================
+    return {
+        Core,
+        State,
+        Connectivity,
+        Messages,
+        UI,
+        Utils,
+        Media,
+        Security,
+        init: Core.init
+    };
+
+})();
+
+// Initialize Application when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    ProChat.init().catch(err => {
+        console.error("Critical Failure during ProChat Neural Sync:", err);
+    });
+});
